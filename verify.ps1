@@ -71,12 +71,11 @@ foreach ($hx in $hashes) {
   $t = (git -C $root cat-file -t $hx 2>&1 | Out-String).Trim()
   Check "提交 $hx 存在" ($t -eq 'commit') "git 报: $t"
 }
-$head = (git -C $root rev-parse --short HEAD).Trim()
 # 台账必须指向"最后一次改动应用代码的提交"。
-# 不能要求记录 HEAD 本身：docs-only 提交无法在自身内容里预知自己的哈希（先有鸡还是先有蛋）。
+# 不检查 HEAD 本身：docs-only 提交无法在自身内容里预知自己的哈希（先有鸡还是先有蛋），
+# 这条检查逻辑上永不可满足，只会制造假告警。
 $codeHead = (git -C $root log -1 --format=%h -- index.html).Trim()
 Check "台账记录了最后一次代码提交 ($codeHead)" ($readme -match [regex]::Escape($codeHead)) "该提交未出现在 README"
-Check "台账也记录了当前 HEAD ($head)" ($readme -match [regex]::Escape($head)) "HEAD 未出现在 README"
 
 Write-Host "`n=== 5. 仓库文件与台账文件结构一致 ===" -ForegroundColor Cyan
 $tracked = @(git -C $root ls-files)
