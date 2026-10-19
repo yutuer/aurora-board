@@ -31,6 +31,11 @@ Check "零外部资源" ($ext.Count -eq 0) "发现 $($ext.Count) 个外链"
 Check "无写死色板残留 (LABEL_COLORS/LABEL_NAMES)" (($html -notmatch 'LABEL_COLORS') -and ($html -notmatch 'LABEL_NAMES')) "仍有残留"
 Check "未使用 :has() 选择器" ($html -notmatch ':has\(') "用到了 :has()，浏览器支持需重新评估"
 Check "未使用 aspect-ratio" ($html -notmatch 'aspect-ratio') "用到了 aspect-ratio，浏览器支持需重新评估"
+# 「纯本地存储、刻意不引入后端」是主人的明确决定（台账 技术决策表）——把它变成可执行断言
+$net = [regex]::Matches($html, '(?i)\b(fetch\s*\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource|navigator\.sendMail)\b')
+Check "零网络请求（守住「不引入后端」的决定）" ($net.Count -eq 0) ("发现 $($net.Count) 处网络调用: " + (($net | ForEach-Object { $_.Value }) -join ', '))
+$ls = ([regex]::Matches($html, 'localStorage\.(set|get)Item')).Count
+Check "localStorage 读写调用存在 ($ls 处)" ($ls -ge 4) "存储调用异常少，可能数据流断了"
 
 Write-Host "`n=== 2. README 数字声明 vs 代码实际 ===" -ForegroundColor Cyan
 $bytes = (Get-Item "$root/index.html").Length
