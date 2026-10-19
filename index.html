@@ -278,6 +278,8 @@ body.dragging .list.is-source .list-body:empty::after{content:"整列拖拽中";
   font-size:10.5px;font-weight:700;padding:2.5px 8px;border-radius:6px;letter-spacing:.3px;
   color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.22);
 }
+/* 浅色底标签改用深色字，保证可读 */
+.lbl.dark,.m-lbl.dark{color:#4a3a00;text-shadow:none}
 .card-title{font-size:13.5px;font-weight:600;line-height:1.45;word-break:break-word;white-space:pre-wrap}
 .card-title[contenteditable="true"]{
   outline:1px solid var(--orange);border-radius:6px;padding:2px 4px;margin:-2px -4px;background:rgba(255,255,255,.05);cursor:text;
@@ -386,6 +388,7 @@ body.dragging .card:not(.ghost):hover{transform:none}
   padding:8px 6px;border-radius:9px;font-size:11.5px;font-weight:700;color:#fff;text-align:center;
   transition:.18s var(--ease);border:2px solid transparent;
 }
+.pop .opt.dark{color:#4a3a00}
 .pop .opt:hover{transform:translateY(-2px) scale(1.04)}
 .pop .opt.on{border-color:#fff;box-shadow:0 0 0 2px var(--modal),0 0 0 3.5px currentColor}
 
@@ -415,6 +418,53 @@ body.dragging .card:not(.ghost):hover{transform:none}
 .ri-s .ldot{width:6px;height:6px;border-radius:50%;flex:none}
 .ri-s .lname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
 .remind-empty{padding:22px 12px;text-align:center;font-size:12.5px;color:var(--text-3)}
+
+/* 标签管理面板 */
+.tagmgr{
+  position:fixed;z-index:1350;width:min(340px,calc(100vw - 24px));
+  padding:6px;border-radius:15px;background:var(--modal);
+  border:1px solid var(--stroke-2);box-shadow:var(--shadow);backdrop-filter:blur(20px);
+  display:none;animation:menuIn .16s var(--ease) both;
+}
+.tagmgr.show{display:block}
+.tagmgr .tm-hd{display:flex;align-items:baseline;gap:8px;padding:8px 10px 6px}
+.tagmgr .tm-hd h4{margin:0;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-3);font-weight:700}
+.tagmgr .tm-hd .rs{margin-left:auto;font-size:11px;color:var(--text-3)}
+.tmrow{display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:10px}
+.tmrow:hover{background:var(--panel-2)}
+.tm-swatch{width:22px;height:22px;border-radius:7px;flex:none;border:2px solid transparent;transition:.16s var(--ease)}
+.tm-swatch:hover{transform:scale(1.14)}
+.tm-name{
+  flex:1;min-width:0;padding:6px 9px;border-radius:8px;background:var(--panel-2);
+  border:1px solid var(--stroke);font-size:13px;color:var(--text);
+}
+.tm-name:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,61,.14)}
+.tm-del{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;color:var(--text-3);transition:.16s}
+.tm-del:hover{background:rgba(255,61,90,.16);color:var(--red)}
+.tm-del svg{width:14px;height:14px}
+.tm-add{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;color:var(--orange);border:1px solid var(--stroke-2);transition:.16s}
+.tm-add:hover{background:var(--panel-2);border-color:var(--orange)}
+.tm-add svg{width:14px;height:14px}
+.tm-palette{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;padding:4px 8px 10px}
+.tm-sw{width:100%;height:22px;border-radius:6px;border:2px solid transparent;transition:.16s}
+.tm-sw:hover{transform:scale(1.14)}
+.tm-sw.on{border-color:var(--text);box-shadow:0 0 0 2px var(--modal),0 0 0 3.5px currentColor}
+.tm-custom{width:100%;height:22px;padding:0;border:2px solid var(--stroke-2);border-radius:6px;background:transparent;cursor:pointer}
+.tm-custom::-webkit-color-swatch-wrapper{padding:0}
+.tm-custom::-webkit-color-swatch{border:none;border-radius:4px}
+.tm-sep{height:1px;background:var(--stroke);margin:6px 6px}
+.tm-hint{padding:2px 10px 8px;font-size:11px;color:var(--text-3);line-height:1.5}
+/* 标签选择器里的"新建"入口与内联创建表单 */
+.pop .opt-add{background:var(--panel-2);color:var(--text-2);border:1.5px dashed var(--stroke-2)}
+.pop .opt-add:hover{border-color:var(--orange);color:var(--orange);background:rgba(255,106,61,.08)}
+.pop-form{margin-top:9px;padding-top:9px;border-top:1px solid var(--stroke)}
+.pop-form .pname{width:100%;padding:7px 10px;border-radius:9px;background:var(--panel);border:1px solid var(--stroke);font-size:13px}
+.pop-form .pname:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,61,.14)}
+.pop .grid.pcolors{grid-template-columns:repeat(8,1fr);gap:6px;margin-top:8px}
+.pop .grid.pcolors .opt{padding:0;height:22px;border-radius:6px}
+.pop-form .row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.mini.primary{background:linear-gradient(135deg,var(--orange),var(--red));color:#fff;border-color:transparent}
+.mini.primary:hover{filter:brightness(1.08)}
 
 /* Toast */
 .toast-wrap{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1600;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
@@ -611,6 +661,12 @@ body.dragging .card:not(.ghost):hover{transform:none}
         </button>
       </div>
       <div class="filter-chips" id="filterChips"><span class="filter-label">标签</span></div>
+      <button class="icon-btn" id="tagMgrBtn" title="管理标签（新增 / 改名 / 改色 / 删除）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+          <line x1="7" y1="7" x2="7.01" y2="7"/>
+        </svg>
+      </button>
     </div>
   </header>
 
@@ -621,7 +677,22 @@ body.dragging .card:not(.ghost):hover{transform:none}
 
 <div class="drag-layer" id="dragLayer"></div>
 <div class="menu" id="menu"></div>
-<div class="pop" id="labelPop"><h4>标签颜色</h4><div class="grid" id="labelGrid"></div></div>
+<div class="pop" id="labelPop">
+  <h4>标签颜色</h4>
+  <div class="grid" id="labelGrid"></div>
+  <div class="pop-form" id="labelForm" hidden>
+    <input class="pname" id="labelFormName" type="text" placeholder="新标签名称">
+    <div class="grid pcolors" id="labelFormColors"></div>
+    <div class="row">
+      <button class="mini" id="labelFormCancel">取消</button>
+      <button class="mini primary" id="labelFormOk">创建</button>
+    </div>
+  </div>
+</div>
+<div class="tagmgr" id="tagMgr">
+  <div class="tm-hd"><h4>管理标签</h4><span class="rs" id="tagMgrSub"></span></div>
+  <div id="tagMgrBody"></div>
+</div>
 <div class="remind" id="remindPanel">
   <div class="remind-head"><h4>截止日期提醒</h4><span class="rs" id="remindSub"></span></div>
   <div id="remindBody"></div>
@@ -784,18 +855,30 @@ function debounce(fn,ms){
 /* ============================================================
    常量
    ============================================================ */
-const LABEL_COLORS = {
-  green :'#3ecf8e', yellow:'#f5c451', orange:'#ff8a3d', red   :'#ff5c5c',
-  blue  :'#4d9dff', purple:'#a77bff', teal  :'#2fd6c4', pink  :'#ff6fae',
-  slate :'#7d879c'
-};
-const LABEL_NAMES = {
-  green:'设计', yellow:'待评审', orange:'紧急', red:'阻塞', blue:'研发',
-  purple:'调研', teal:'已完成', pink:'营销', slate:'杂项'
-};
+/* 标签表：标签不再写死，每个标签有独立的 id / 名称 / 颜色，可增删改。
+   下面 9 个是内置标签，id 与旧版写死色板一一对应，老数据无需迁移。
+   卡片的 labels 数组存的是标签 id。 */
+const BUILTIN_LABELS=[
+  {id:'green', name:'设计',   color:'#3ecf8e'},
+  {id:'yellow',name:'待评审', color:'#f5c451'},
+  {id:'orange',name:'紧急',   color:'#ff8a3d'},
+  {id:'red',   name:'阻塞',   color:'#ff5c5c'},
+  {id:'blue',  name:'研发',   color:'#4d9dff'},
+  {id:'purple',name:'调研',   color:'#a77bff'},
+  {id:'teal',  name:'已完成', color:'#2fd6c4'},
+  {id:'pink',  name:'营销',   color:'#ff6fae'},
+  {id:'slate', name:'杂项',   color:'#7d879c'}
+];
+/* 新建 / 改色时的候选色板 */
+const TAG_PALETTE=[
+  '#ff5c5c','#ff8a3d','#ffb020','#f5c451','#3ecf8e','#2fd6c4','#4d9dff','#a77bff',
+  '#ff6fae','#ec4899','#8b5cf6','#6366f1','#0ea5e9','#14b8a6','#22c55e','#eab308',
+  '#64748b','#7d879c','#e11d48','#0891b2'
+];
 const LIST_COLORS = ['#ff6a3d','#ffb020','#3ecf8e','#4d9dff','#a77bff','#2fd6c4','#ff6fae','#7d879c'];
 const STORE='aurora.board.v1';
 const PREF='aurora.pref.v1';
+const LABELS_STORE='aurora.labels.v1';
 
 /* ============================================================
    数据
@@ -810,7 +893,7 @@ function mkList(title,color,cards){
   return {id:uid('l'),title:title,color:color||LIST_COLORS[0],cards:cards||[]};
 }
 function seed(){
-  return {
+  const s={
     title:'Aurora Board',
     lists:[
       mkList('需求池','#ff6a3d',[
@@ -841,7 +924,45 @@ function seed(){
       ])
     ]
   };
+  // 示例卡片只保留当前标签表里仍存在的标签（用户删过内置标签时不留悬空引用）
+  s.lists.forEach(l=>l.cards.forEach(c=>{ c.labels=(c.labels||[]).filter(k=>labelExists(k)); }));
+  return s;
 }
+/* 标签表：独立于看板数据存储（aurora.labels.v1） */
+let labels=[];
+function loadLabels(){
+  try{
+    const raw=localStorage.getItem(LABELS_STORE);
+    const d=raw?JSON.parse(raw):null;
+    if(Array.isArray(d)&&d.length){
+      labels=d.filter(x=>x&&x.id).map(x=>({
+        id:String(x.id),
+        name:String(x.name||x.id),
+        color:/^#[0-9a-fA-F]{6}$/.test(x.color)?x.color:'#7d879c'
+      }));
+      return;
+    }
+  }catch(e){}
+  labels=BUILTIN_LABELS.map(x=>({id:x.id,name:x.name,color:x.color}));
+  saveLabels();
+}
+function saveLabels(){
+  try{ localStorage.setItem(LABELS_STORE,JSON.stringify(labels)); }catch(e){}
+}
+function labelDef(id){ return labels.find(l=>l.id===id)||null; }
+function labelName(id){ const d=labelDef(id); return d?d.name:id; }
+function labelColor(id,fb){ const d=labelDef(id); return d?d.color:(fb||'#7d879c'); }
+function labelExists(id){ return !!labelDef(id); }
+/* 亮度判断：只有确实很浅的底色才改用深色字（阈值取 185，
+   正好覆盖内置的黄色 #f5c451，其余内置色维持白字，与卡片 chip 保持一致） */
+function isLight(hex){
+  const h=String(hex||'').replace('#','');
+  if(h.length<6) return false;
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return (r*299+g*587+b*114)/1000>185;
+}
+loadLabels();
+
 let board;
 try{
   const raw=localStorage.getItem(STORE);
@@ -849,6 +970,13 @@ try{
   board = (d&&Array.isArray(d.lists)&&d.lists.length)? d : seed();
 }catch(e){ board=seed(); }
 if(!board.title) board.title='Aurora Board';
+/* 清掉指向已删除标签的悬空引用（标签被删后卡片不应再挂着无效 id） */
+board.lists.forEach(l=>l.cards.forEach(c=>{
+  if(c.labels&&c.labels.length){
+    const keep=c.labels.filter(k=>labelExists(k));
+    if(keep.length!==c.labels.length) c.labels=keep;
+  }
+}));
 
 function save(){
   try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
@@ -875,7 +1003,7 @@ const wrapEl=$('#boardWrap');
 const dragLayer=$('#dragLayer');
 
 function cardColor(card){
-  return card.labels&&card.labels.length ? (LABEL_COLORS[card.labels[0]]||'#ff6a3d') : '#ff6a3d';
+  return card.labels&&card.labels.length ? labelColor(card.labels[0],'#ff6a3d') : '#ff6a3d';
 }
 function applyDueState(node,card){
   const s=dueState(card);
@@ -894,8 +1022,9 @@ function buildCard(card){
   if(card.labels&&card.labels.length){
     const box=el('div','card-labels');
     card.labels.forEach(k=>{
-      const l=el('span','lbl',LABEL_NAMES[k]||k);
-      l.style.background=LABEL_COLORS[k]||'#7d879c';
+      const c=labelColor(k);
+      const l=el('span','lbl'+(isLight(c)?' dark':''),labelName(k));
+      l.style.background=c;
       box.appendChild(l);
     });
     node.appendChild(box);
@@ -1034,13 +1163,16 @@ function renderFilterChips(){
     box.appendChild(el('span','filter-label','（暂无）'));
     return;
   }
-  Array.from(used).sort().forEach(k=>{
+  // 顺序跟随「管理标签」面板：内置标签保持色板顺序，自建标签按创建顺序追加
+  // （不依赖 localeCompare 的中文排序，各浏览器 collation 差异大、顺序不符合直觉）
+  labels.forEach(l=>{
+    if(!used.has(l.id)) return;
     const b=el('button','fc');
-    const d=el('span','dot'); d.style.background=LABEL_COLORS[k]||'#7d879c';
-    b.append(d,el('span',null,LABEL_NAMES[k]||k));
-    if(activeLabels.has(k)){ b.classList.add('on'); b.style.background=LABEL_COLORS[k]||'#7d879c'; }
+    const d=el('span','dot'); d.style.background=l.color;
+    b.append(d,el('span',null,l.name));
+    if(activeLabels.has(l.id)){ b.classList.add('on'); b.style.background=l.color; }
     b.addEventListener('click',()=>{
-      if(activeLabels.has(k)) activeLabels.delete(k); else activeLabels.add(k);
+      if(activeLabels.has(l.id)) activeLabels.delete(l.id); else activeLabels.add(l.id);
       renderFilterChips(); applyFilter();
     });
     box.appendChild(b);
@@ -1158,17 +1290,21 @@ document.addEventListener('pointerdown',e=>{
 },true);
 
 const popEl=$('#labelPop');
+let labelPopCtx=null;   // 当前标签选择器上下文：新建标签后要重建网格
 function openLabelPop(anchor,selected,onPick){
+  labelPopCtx={anchor:anchor,selected:selected,onPick:onPick};
   const grid=$('#labelGrid');
   grid.innerHTML='';
-  Object.keys(LABEL_COLORS).forEach(k=>{
-    const b=el('button','opt'+(selected.includes(k)?' on':''),LABEL_NAMES[k]||k);
-    b.style.background=LABEL_COLORS[k];
-    b.style.color=k==='yellow'?'#4a3a00':'#fff';
-    if(selected.includes(k)) b.style.color='#fff';
-    b.addEventListener('click',()=>{ onPick(k); });
+  labels.forEach(l=>{
+    const b=el('button','opt'+(selected.includes(l.id)?' on':'')+(isLight(l.color)?' dark':''),l.name);
+    b.style.background=l.color;
+    if(selected.includes(l.id)) b.style.color='#fff';
+    b.addEventListener('click',()=>{ onPick(l.id); });
     grid.appendChild(b);
   });
+  const add=el('button','opt opt-add','＋ 新建');
+  add.addEventListener('click',showLabelForm);
+  grid.appendChild(add);
   popEl.classList.add('show');
   const r=anchor.getBoundingClientRect();
   const w=popEl.offsetWidth,h=popEl.offsetHeight;
@@ -1178,7 +1314,53 @@ function openLabelPop(anchor,selected,onPick){
   popEl.style.left=Math.max(12,left)+'px';
   popEl.style.top=top+'px';
 }
-function closePop(){ popEl.classList.remove('show'); }
+function closePop(){ popEl.classList.remove('show'); hideLabelForm(); }
+/* 标签选择器内的「新建」表单：名称 + 颜色 */
+function showLabelForm(){
+  const grid=$('#labelFormColors');
+  grid.innerHTML='';
+  TAG_PALETTE.forEach((c,i)=>{
+    const b=el('button','opt'+(i===0?' on':''));
+    b.style.background=c;
+    b.dataset.color=c;
+    b.addEventListener('click',()=>{
+      grid.querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+    });
+    grid.appendChild(b);
+  });
+  $('#labelFormName').value='';
+  $('#labelForm').hidden=false;
+  $('#labelGrid').style.display='none';
+  setTimeout(()=>$('#labelFormName').focus(),0);
+}
+function hideLabelForm(){
+  const f=$('#labelForm');
+  if(!f) return;
+  f.hidden=true;
+  $('#labelGrid').style.display='';
+}
+function refreshLabelPop(){
+  if(!labelPopCtx) return;
+  openLabelPop(labelPopCtx.anchor,labelPopCtx.selected,labelPopCtx.onPick);
+}
+$('#labelFormOk').addEventListener('click',()=>{
+  const name=$('#labelFormName').value.trim();
+  if(!name){ toast('请输入标签名称'); return; }
+  const on=$('#labelFormColors .opt.on');
+  const l=createLabel(name,on?on.dataset.color:TAG_PALETTE[0]);
+  if(!l) return;
+  hideLabelForm();
+  const card=modalCtx&&modalCtx.cardId?findCard(modalCtx.cardId).card:null;
+  if(card){
+    card.labels=card.labels||[];
+    if(!card.labels.includes(l.id)) card.labels.push(l.id);
+    save(); renderModalLabels(card); renderFilterChips(); refreshCardEl(card); renderStats();
+  }
+  refreshLabelPop();
+  toast('已添加标签「'+name+'」');
+});
+$('#labelFormCancel').addEventListener('click',hideLabelForm);
 document.addEventListener('pointerdown',e=>{ if(!popEl.contains(e.target)) closePop(); },true);
 
 $('#labelPop').addEventListener('click',e=>{ e.stopPropagation(); });
@@ -1630,9 +1812,10 @@ function renderModalLabels(card){
   const box=$('#mLabels');
   box.innerHTML='';
   (card.labels||[]).forEach(k=>{
-    const s=el('span','m-lbl');
-    s.style.background=LABEL_COLORS[k]||'#7d879c';
-    s.appendChild(el('span',null,LABEL_NAMES[k]||k));
+    const c=labelColor(k);
+    const s=el('span','m-lbl'+(isLight(c)?' dark':''));
+    s.style.background=c;
+    s.appendChild(el('span',null,labelName(k)));
     const x=el('button',null,'×');
     x.addEventListener('click',()=>{
       card.labels=card.labels.filter(y=>y!==k);
@@ -1812,6 +1995,168 @@ $('#cmAdd').addEventListener('click',addComment);
 $('#cmInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addComment();} });
 
 /* ============================================================
+   标签管理：新增 / 改名 / 改色 / 删除
+   ============================================================ */
+const tagMgr=$('#tagMgr');
+const tagMgrBody=$('#tagMgrBody');
+let tmOpenId=null;        // 正在展开调色板的行（标签 id，或 '__add__' 表示新增行）
+let tmAddColor=TAG_PALETTE[4];
+
+/* 标签变动后刷新受影响的视图：筛选项、卡片上的标签、弹窗里的标签 */
+function syncLabelViews(id){
+  renderFilterChips();
+  if(id) allCards().forEach(c=>{
+    if((c.labels||[]).includes(id)) refreshCardEl(c);
+  });
+  const cur=modalCtx&&modalCtx.cardId?findCard(modalCtx.cardId).card:null;
+  if(cur) renderModalLabels(cur);
+}
+function createLabel(name,color){
+  name=(name||'').trim();
+  if(!name) return null;
+  if(labels.some(l=>l.name===name)){
+    toast('已存在同名标签「'+name+'」');
+    return null;
+  }
+  const l={id:uid('tag'),name:name,color:color||TAG_PALETTE[4]};
+  labels.push(l);
+  saveLabels();
+  renderFilterChips();
+  return l;
+}
+function renameLabel(id,name){
+  const d=labelDef(id); if(!d) return;
+  name=(name||'').trim();
+  if(!name||name===d.name){ renderTagMgr(); return; }
+  if(labels.some(l=>l.id!==id&&l.name===name)){
+    toast('已存在同名标签「'+name+'」');
+    renderTagMgr();
+    return;
+  }
+  d.name=name;
+  saveLabels();
+  syncLabelViews(id);
+  toast('标签已重命名为「'+name+'」');
+}
+function setLabelColor(id,c){
+  if(!c) return;
+  if(id==='__add__'){ tmAddColor=c; renderTagMgr(); return; }
+  const d=labelDef(id); if(!d) return;
+  if(String(d.color).toLowerCase()===String(c).toLowerCase()) return;
+  d.color=c;
+  saveLabels();
+  syncLabelViews(id);
+  renderTagMgr();
+}
+async function deleteLabel(id){
+  const d=labelDef(id); if(!d) return;
+  const used=allCards().filter(c=>(c.labels||[]).includes(id)).length;
+  const ok=await confirmDlg('删除标签「'+d.name+'」？',
+    used?('该标签正被 '+used+' 张卡片使用，删除后这些卡片会移除该标签。'):'该标签暂未被任何卡片使用。',
+    '删除标签',true);
+  if(!ok) return;
+  labels=labels.filter(l=>l.id!==id);
+  saveLabels();
+  activeLabels.delete(id);
+  allCards().forEach(c=>{
+    if((c.labels||[]).includes(id)){
+      c.labels=c.labels.filter(x=>x!==id);
+      refreshCardEl(c);
+    }
+  });
+  save();
+  tmOpenId=null;
+  renderTagMgr();
+  syncLabelViews(null);
+  toast('已删除标签');
+}
+/* 调色板：20 个预设色 + 原生取色器 */
+function buildPalette(id,color){
+  const box=el('div','tm-palette');
+  TAG_PALETTE.forEach(c=>{
+    const b=el('button','tm-sw'+(String(color).toLowerCase()===c.toLowerCase()?' on':''));
+    b.style.background=c;
+    b.style.color=c;
+    b.title=c;
+    b.addEventListener('click',()=>setLabelColor(id,c));
+    box.appendChild(b);
+  });
+  const custom=el('input','tm-custom');
+  custom.type='color';
+  custom.value=String(color);
+  custom.title='自定义颜色';
+  custom.addEventListener('input',()=>setLabelColor(id,custom.value));
+  box.appendChild(custom);
+  return box;
+}
+function renderTagMgr(){
+  tagMgrBody.innerHTML='';
+  labels.forEach(l=>{
+    const row=el('div','tmrow');
+    const sw=el('button','tm-swatch');
+    sw.style.background=l.color;
+    sw.title='点击更换颜色';
+    const name=el('input','tm-name');
+    name.value=l.name;
+    name.spellcheck=false;
+    name.title='可直接编辑名称，回车或失焦即生效';
+    const del=el('button','tm-del');
+    del.title='删除标签';
+    del.appendChild(svg(['M3 6h18','M8 6V4h8v2','M19 6l-1 14H6L5 6'],{sw:'2'}));
+    sw.addEventListener('click',()=>{ tmOpenId=(tmOpenId===l.id?null:l.id); renderTagMgr(); });
+    name.addEventListener('change',()=>renameLabel(l.id,name.value));
+    name.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); name.blur(); } });
+    del.addEventListener('click',()=>deleteLabel(l.id));
+    row.append(sw,name,del);
+    tagMgrBody.appendChild(row);
+    if(tmOpenId===l.id) tagMgrBody.appendChild(buildPalette(l.id,l.color));
+  });
+  tagMgrBody.appendChild(el('div','tm-sep'));
+  const add=el('div','tmrow');
+  const asw=el('button','tm-swatch');
+  asw.style.background=tmAddColor;
+  asw.title='选择颜色';
+  const aname=el('input','tm-name');
+  aname.placeholder='新标签名称';
+  aname.spellcheck=false;
+  const abtn=el('button','tm-add');
+  abtn.title='添加标签';
+  abtn.appendChild(svg(['M12 5v14M5 12h14'],{sw:'2.4'}));
+  asw.addEventListener('click',()=>{ tmOpenId=(tmOpenId==='__add__'?null:'__add__'); renderTagMgr(); });
+  abtn.addEventListener('click',()=>{
+    const l=createLabel(aname.value,tmAddColor);
+    if(l){ aname.value=''; tmOpenId=null; renderTagMgr(); toast('已添加标签「'+l.name+'」'); }
+  });
+  aname.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); abtn.click(); } });
+  add.append(asw,aname,abtn);
+  tagMgrBody.appendChild(add);
+  if(tmOpenId==='__add__') tagMgrBody.appendChild(buildPalette('__add__',tmAddColor));
+  tagMgrBody.appendChild(el('div','tm-hint','名称可直接编辑，回车或失焦即生效；点色块换颜色。改动立刻同步到所有卡片与筛选栏。'));
+  $('#tagMgrSub').textContent=labels.length+' 个';
+}
+function openTagMgr(){
+  renderTagMgr();
+  tagMgr.classList.add('show');
+  const r=$('#tagMgrBtn').getBoundingClientRect();
+  const w=tagMgr.offsetWidth,h=tagMgr.offsetHeight;
+  let left=Math.min(r.right-w,window.innerWidth-w-12);
+  let top=r.bottom+8;
+  if(top+h>window.innerHeight-12) top=Math.max(12,window.innerHeight-h-12);
+  tagMgr.style.left=Math.max(12,left)+'px';
+  tagMgr.style.top=top+'px';
+}
+function closeTagMgr(){ tagMgr.classList.remove('show'); }
+$('#tagMgrBtn').addEventListener('click',()=>{
+  if(tagMgr.classList.contains('show')) closeTagMgr(); else openTagMgr();
+});
+document.addEventListener('pointerdown',e=>{
+  if(tagMgr.contains(e.target)||$('#tagMgrBtn').contains(e.target)) return;
+  // 确认框 / 菜单 / 气泡是更上层的浮层，在它们上面点击不应顺带收起管理面板
+  if(e.target.closest&&e.target.closest('.confirm,.menu,.pop')) return;
+  closeTagMgr();
+},true);
+
+/* ============================================================
    截止日期提醒
    ============================================================ */
 const remindBtn=$('#remindBtn');
@@ -1905,7 +2250,9 @@ remindBtn.addEventListener('click',()=>{
   if(remindPanel.classList.contains('show')) closeRemind(); else openRemind();
 });
 document.addEventListener('pointerdown',e=>{
-  if(!remindPanel.contains(e.target)&&!remindBtn.contains(e.target)) closeRemind();
+  if(remindPanel.contains(e.target)||remindBtn.contains(e.target)) return;
+  if(e.target.closest&&e.target.closest('.confirm,.menu,.pop')) return;
+  closeRemind();
 },true);
 
 /* ============================================================
@@ -1931,7 +2278,9 @@ $('#themeBtn').addEventListener('click',()=>{
 })();
 
 $('#exportBtn').addEventListener('click',()=>{
-  const blob=new Blob([JSON.stringify(board,null,2)],{type:'application/json'});
+  // 一并导出标签表，导入方即可还原每个标签的名称与颜色
+  const payload=Object.assign({},board,{labels:labels});
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='board-'+todayStr()+'.json';
@@ -1947,6 +2296,15 @@ $('#importFile').addEventListener('change',e=>{
     try{
       const d=JSON.parse(r.result);
       if(!d||!Array.isArray(d.lists)||!d.lists.length) throw new Error('格式错误');
+      if(Array.isArray(d.labels)&&d.labels.length){
+        labels=d.labels.filter(x=>x&&x.id).map(x=>({
+          id:String(x.id),
+          name:String(x.name||x.id),
+          color:/^#[0-9a-fA-F]{6}$/.test(x.color)?x.color:'#7d879c'
+        }));
+        saveLabels();
+      }
+      delete d.labels;
       board=d;
       if(!board.title) board.title='Aurora Board';
       save(); renderBoard(); toast('导入成功');
@@ -1966,10 +2324,12 @@ $('#resetBtn').addEventListener('click',async()=>{
    ============================================================ */
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
+    // 按层级从高到低关闭：确认框(1500) > 工具栏面板(1350) > 气泡(1300) > 菜单(1200) > 详情弹窗(1100)
+    if(cf.classList.contains('show')) return closeConfirm(false);
     if(remindPanel.classList.contains('show')) return closeRemind();
+    if(tagMgr.classList.contains('show')) return closeTagMgr();
     if(popEl.classList.contains('show')) return closePop();
     if(menuEl.classList.contains('show')) return closeMenu();
-    if(cf.classList.contains('show')) return closeConfirm(false);
     if(modalCtx.cardId) return closeModal();
   }
 });
