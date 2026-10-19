@@ -12,9 +12,9 @@
 | 线上地址 | https://yutuer.github.io/aurora-board/ |
 | 仓库 | https://github.com/yutuer/aurora-board |
 | 本地路径 | `C:\Users\yutue\WorkBuddy\trello看板` |
-| 应用本体 | `index.html`（单文件，约 75 KB） |
+| 应用本体 | `index.html`（单文件，约 100 KB） |
 | 数据存储 | 浏览器 localStorage，键 `aurora.board.v1`（看板）+ `aurora.labels.v1`（标签表），**不上传服务器** |
-| 当前状态 | ✅ 已上线（构建戳 `dcdeb85`） |
+| 当前状态 | ✅ 已上线（每次部署由 CI 自动注入构建戳，见页面右上角；校验方式见第四章） |
 
 ---
 
@@ -32,6 +32,8 @@
 | P6 校验修正 | 构建戳校验判据改为「实际戳==期望戳」，堵住锚点改名时的静默失效 | `2d298df` |
 | P7 截止日期提醒 | 卡片到期三态视觉 + 顶栏提醒中心 | `d83be8b` |
 | P8 标签管理 | 标签可新增 / 改名 / 改色 / 删除（色板不再写死） | `3d090d3` |
+| P9 引用清理 | 导入 JSON 后清理指向已删除标签的悬空引用 | `d271419` |
+| P10 台账自检 | `verify.ps1` 自动化核对台账与代码一致性 | 待提交 |
 
 **验证结论**（2026-10-19 17:45）：
 - `has_pages: true`，`https://yutuer.github.io/aurora-board/` 返回 **200**
@@ -176,6 +178,8 @@
 4. **校验逻辑本身要被校验** —— 构建戳的守卫最初写成「查 `dev` 还在不在」，看起来合理，但锚点一旦被改名，`sed` 会注到新名字上、旧串自然找不到 → **守卫误判为通过，静默失效**。做反向演练（故意破坏输入，确认守卫真会拦住）才发现。**判据要落在"结果等于期望值"，不是"坏值是否消失"**。
 5. **改坏 vs 环境坏，先做对照再下结论** —— 本次改完看板整块不显示，第一反应是"我改坏了"。**先拿线上未修改版在同一环境打开**（同样空白 → 环境问题），再回头查自己的改动。否则会把环境问题当成自己的 bug 去"修"，白费一轮还可能改坏原本正常的代码。
 6. **自动化写不进原生日期框，不代表功能坏了** —— `<input type="date">` 的 `fill` / `type` 在浏览器自动化里普遍失败（值不是纯文本字段）。此时改走**同一条业务链路的其他入口**（如「清除日期」按钮同样触发 `save()` + 局部刷新），验证真实逻辑，而不是硬怼输入框。
+7. **写 `.ps1` 给 PowerShell 5.1 跑，必须存 UTF-8 带 BOM** —— 5.1 会把无 BOM 的 `.ps1` 按系统 ANSI 解码，脚本里的中文注释直接把解析器打挂，报一堆"意外的标记 ')'"这类看不懂的错。补 BOM：`[System.IO.File]::WriteAllText($p,$txt,(New-Object System.Text.UTF8Encoding($true)))`。
+8. **台账里的数字会漂移，能自动核对就别手写** —— 本次"约 75 KB"在两次大改后已变成 98.7 KB，半年后没人会记得回头改。**修法：把这类声明写成断言**（见第六章 `verify.ps1`），让失真主动暴露，而不是等人来读。
 
 ---
 
@@ -193,9 +197,10 @@ git push          # 自动触发 CI 部署
 ### 验收流程（每次改动后）
 
 1. 本地起服务测：`python -m http.server 8791`，浏览器打开 `http://127.0.0.1:8791/`
-2. **测完立即收尾**：`TaskStop(task_id)` + `Get-NetTCPConnection -LocalPort 8791 -State Listen` 确认端口已空
-3. 推送后查部署：`curl -s "https://api.github.com/repos/yutuer/aurora-board/actions/runs?per_page=1"`
-4. 验证线上：抓页面看构建戳是否更新 + 内容是否与本地一致
+2. **跑台账自检**：`powershell -ExecutionPolicy Bypass -File ./verify.ps1`，把台账与代码的失真处清零
+3. **测完立即收尾**：`TaskStop(task_id)` + `Get-NetTCPConnection -LocalPort 8791 -State Listen` 确认端口已空
+4. 推送后查部署：`curl -s "https://api.github.com/repos/yutuer/aurora-board/actions/runs?per_page=1"`
+5. 验证线上：抓页面看构建戳是否更新 + 内容是否与本地一致
 
 > ✅ **主人已授权（2026-10-19）**：本项目**测试通过后直接 commit + push + 触发 CI 部署，不必再逐次询问**。
 > 前提是"测试确实通过"（浏览器实点 + `node --check` + 构建戳锚点完好）。
@@ -219,6 +224,7 @@ git push          # 自动触发 CI 部署
 ```
 aurora-board/
 ├── index.html                    # 应用本体（HTML+CSS+JS 全在此）
+├── verify.ps1                    # 台账自检：核对本文件与代码/git 是否一致
 ├── .github/workflows/deploy.yml  # CI：注入构建戳 → 上传 → 发布
 ├── .nojekyll                     # 禁用 Jekyll 处理
 ├── .gitignore                    # 排除 .workbuddy/ 等本地目录
@@ -228,11 +234,24 @@ aurora-board/
 └── LICENSE                       # MIT
 ```
 
+### 台账自检（改完必跑）
+
+本台账里写着体积、阈值、提交号、文件清单等**会随改动漂移的数字**。改完代码后跑一次自检，把失真揪出来：
+
+```bash
+cd C:/Users/yutue/WorkBuddy/trello看板
+powershell -ExecutionPolicy Bypass -File ./verify.ps1
+```
+
+覆盖 7 组、40+ 项断言：JS 语法、CI 锚点、零外部资源、体积区间、阈值/色板/列宽等数字声明、标签体系键值、**台账里每个提交号必须真实存在**、仓库文件与文件结构章节一一对应、功能入口存在性、线上构建戳与逐字节比对。任一 `[FAIL]` 即为台账失真，改代码或改本文件直到全绿。
+
+> ⚠️ `verify.ps1` 必须存为 **UTF-8 带 BOM**。PowerShell 5.1 会把无 BOM 的 `.ps1` 按系统 ANSI 解码，中文注释直接导致解析报错。
+
 ---
 
 ## 七、浏览器支持
 
-现代浏览器（Chrome / Edge / Safari / Firefox 近两年版本）。依赖 Pointer Events 与 CSS 自定义属性。
+现代浏览器（Chrome / Edge / Safari / Firefox 近两年版本）。依赖 Pointer Events、CSS 自定义属性、`inset` 简写，以及原生 `<input type="color">` 取色器（标签改色）。
 
 无障碍：`prefers-reduced-motion` 下动画降级至 0.08s。
 
