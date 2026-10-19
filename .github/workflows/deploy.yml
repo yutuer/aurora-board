@@ -1,0 +1,45 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Stamp build info
+        run: |
+          STAMP="${GITHUB_SHA:0:7} - $(date -u '+%m-%d %H:%M') UTC"
+          sed -i "s|id=\"build-stamp\">dev<|id=\"build-stamp\">${STAMP}<|" index.html
+          echo "build stamp -> ${STAMP}"
+          # 注入失败必须让 CI 失败，避免静默产出 dev 戳、线上无法辨认版本
+          if grep -q 'id="build-stamp">dev<' index.html; then
+            echo "::error::构建戳注入失败，index.html 中的锚点可能已变更"
+            exit 1
+          fi
+          grep -o 'id="build-stamp">[^<]*' index.html
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

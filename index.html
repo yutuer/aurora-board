@@ -136,6 +136,13 @@ html[data-theme="light"] .brand h1{background:linear-gradient(100deg,#1b2130 10%
 .btn-primary:hover{filter:brightness(1.08);color:#fff}
 .btn-danger{color:var(--red);border-color:rgba(255,61,90,.35)}
 .btn-danger:hover{background:rgba(255,61,90,.14);color:var(--red)}
+/* 构建戳：部署时由 GitHub Actions 注入 commit+时间，便于确认线上是否新版 */
+.build-stamp{
+  font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--text-3);
+  font-variant-numeric:tabular-nums;padding:4px 9px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--stroke);white-space:nowrap;flex:none;
+}
+@media(max-width:900px){.build-stamp{display:none}}
 
 /* 工具条 */
 .toolbar{display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap}
@@ -514,6 +521,7 @@ body.dragging .card:not(.ghost):hover{transform:none}
       <button class="icon-btn" id="resetBtn" title="恢复示例数据">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
       </button>
+      <span class="build-stamp" id="build-stamp">dev</span>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
     <div class="toolbar">
