@@ -953,6 +953,16 @@ function labelDef(id){ return labels.find(l=>l.id===id)||null; }
 function labelName(id){ const d=labelDef(id); return d?d.name:id; }
 function labelColor(id,fb){ const d=labelDef(id); return d?d.color:(fb||'#7d879c'); }
 function labelExists(id){ return !!labelDef(id); }
+/* 清掉指向已删除标签的悬空引用（标签被删后卡片不应再挂着无效 id） */
+function pruneDanglingLabels(){
+  if(!board||!board.lists) return;
+  board.lists.forEach(l=>l.cards.forEach(c=>{
+    if(c.labels&&c.labels.length){
+      const keep=c.labels.filter(k=>labelExists(k));
+      if(keep.length!==c.labels.length) c.labels=keep;
+    }
+  }));
+}
 /* 亮度判断：只有确实很浅的底色才改用深色字（阈值取 185，
    正好覆盖内置的黄色 #f5c451，其余内置色维持白字，与卡片 chip 保持一致） */
 function isLight(hex){
@@ -970,13 +980,7 @@ try{
   board = (d&&Array.isArray(d.lists)&&d.lists.length)? d : seed();
 }catch(e){ board=seed(); }
 if(!board.title) board.title='Aurora Board';
-/* 清掉指向已删除标签的悬空引用（标签被删后卡片不应再挂着无效 id） */
-board.lists.forEach(l=>l.cards.forEach(c=>{
-  if(c.labels&&c.labels.length){
-    const keep=c.labels.filter(k=>labelExists(k));
-    if(keep.length!==c.labels.length) c.labels=keep;
-  }
-}));
+pruneDanglingLabels();
 
 function save(){
   try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
@@ -2307,6 +2311,7 @@ $('#importFile').addEventListener('change',e=>{
       delete d.labels;
       board=d;
       if(!board.title) board.title='Aurora Board';
+      pruneDanglingLabels();
       save(); renderBoard(); toast('导入成功');
     }catch(err){ toast('导入失败：'+err.message); }
   };
