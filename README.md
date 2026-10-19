@@ -166,6 +166,10 @@ git push          # 自动触发 CI 部署
 3. 推送后查部署：`curl -s "https://api.github.com/repos/yutuer/aurora-board/actions/runs?per_page=1"`
 4. 验证线上：抓页面看构建戳是否更新 + 内容是否与本地一致
 
+> ✅ **主人已授权（2026-10-19）**：本项目**测试通过后直接 commit + push + 触发 CI 部署，不必再逐次询问**。
+> 前提是"测试确实通过"（浏览器实点 + `node --check` + 构建戳锚点完好）。
+> 推完仍要自证结果：查 Actions run 为 `success`、抓线上页面核对构建戳与本地**归一化后逐字节一致**，别只报一句"已推送"。
+
 > ⚠️ 本环境 `curl` 返回 502 是代理兜底响应，**不能作为服务存活判据**，必须用 `Get-NetTCPConnection` 查真实监听。
 
 > ⚠️ **在「内置 Browser」（Electron FilePanel）里测本项目**：若看板整块空白但 DOM 查得到、控制台无报错，说明该环境把 CSS 动画**冻结在 0% 帧**（`animation:...both` 的 `opacity:0` 所致）。
