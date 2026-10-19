@@ -1,0 +1,5 @@
+# 统一以 LF 存储，避免跨平台协作时的换行符噪声
+* text=auto eol=lf
+
+# HTML 不做 diff 友好的换行处理
+*.html text eol=lf
