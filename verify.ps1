@@ -103,18 +103,26 @@ foreach ($kv in @(
 }
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
+# 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
+#     且不受 GitHub API 匿名配额（60 次/小时/IP）限制。
 try {
-  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/yutuer/aurora-board/actions/runs?per_page=1' -Headers @{ 'User-Agent' = 'mavis' } -TimeoutSec 25
-  $run = $r.workflow_runs[0]
-  Check "CI 最新 run 为 success (sha=$($run.head_sha.Substring(0,7)))" ($run.conclusion -eq 'success') "状态 $($run.status)/$($run.conclusion)"
-  $live = (Invoke-WebRequest -Uri 'https://yutuer.github.io/aurora-board/' -UseBasicParsing -TimeoutSec 25).Content
+  $u = "https://yutuer.github.io/aurora-board/?cb=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
+  $live = (Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 25).Content
   $stamp = [regex]::Match($live, 'id="build-stamp">([^<]*)<').Groups[1].Value
   Check "线上构建戳非 dev: $stamp" ($stamp -ne 'dev') "线上仍是 dev"
   $lNorm = ($live -replace 'id="build-stamp">[^<]*<', 'id="build-stamp">STAMP<')
   $hNorm = ($html -replace 'id="build-stamp">[^<]*<', 'id="build-stamp">STAMP<')
   Check "线上与本地归一化后逐字节一致" ($lNorm -ceq $hNorm) "长度 $($lNorm.Length) vs $($hNorm.Length)"
 } catch {
-  Skip "线上核对（网络不可用）" $_.Exception.Message
+  Skip "线上页面核对" $_.Exception.Message
+}
+# 7b. CI 状态：API 辅助信息，超配额只提示不判失败
+try {
+  $r = Invoke-RestMethod -Uri 'https://api.github.com/repos/yutuer/aurora-board/actions/runs?per_page=1' -Headers @{ 'User-Agent' = 'mavis' } -TimeoutSec 25
+  $run = $r.workflow_runs[0]
+  Check "CI 最新 run 为 success (sha=$($run.head_sha.Substring(0,7)))" ($run.conclusion -eq 'success') "状态 $($run.status)/$($run.conclusion)"
+} catch {
+  Skip "CI 状态核对（API 限流/网络问题）" $_.Exception.Message
 }
 
 Write-Host "`n=========================================" -ForegroundColor Cyan
