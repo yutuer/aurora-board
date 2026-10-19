@@ -28,6 +28,7 @@
 | P2 自动化部署 | GitHub Actions 工作流 + 构建戳 | `c0678a7` |
 | P3 文档 | 部署指南 | `dcdeb85` |
 | P4 上线验证 | 根路径 200、构建戳注入、与本地逐字节一致 | — |
+| P5 依赖升级 | Actions 升至最新版，消除 Node 20 弃用警告 | `3c61b83` |
 
 **验证结论**（2026-10-19 17:45）：
 - `has_pages: true`，`https://yutuer.github.io/aurora-board/` 返回 **200**
@@ -110,6 +111,7 @@
 | **CI 失败 ≠ 代码有问题** | 本项目首次部署失败于 `Setup Pages`，因 `has_pages: false`（Pages 未启用）。**必须做步骤级定位**，别一看到红叉就改代码 |
 | **根路径 404** | 仓库必须含 `index.html`，`path: .` 全量上传也救不了 |
 | **构建戳注入** | 依赖 `id="build-stamp">dev<` 精确锚点。改动该处会让 CI 报错（这是设计好的加固，不是 bug） |
+| **Node 20 弃用警告** | Actions 已被强制跑在 Node 24 上（旧版本 action 触发警告）。已升级为最新：`checkout@v7`、`configure-pages@v6`、`upload-pages-artifact@v5`、`deploy-pages@v5` |
 
 ### 📌 方法论教训
 
