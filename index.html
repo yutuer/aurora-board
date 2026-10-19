@@ -2229,7 +2229,10 @@ function openRemind(){
   const r=remindBtn.getBoundingClientRect();
   const w=remindPanel.offsetWidth,h=remindPanel.offsetHeight;
   let left=Math.min(r.right-w,window.innerWidth-w-12);
-  let top=r.bottom+8;
+  // 铃铛在顶栏第一行，面板若从铃铛正下方展开会横跨第二行，
+  // 盖住工具条上的「管理标签」按钮。因此下沿改到整个顶栏之下。
+  const tb=document.querySelector('.topbar').getBoundingClientRect();
+  let top=Math.max(r.bottom+8,tb.bottom+8);
   if(top+h>window.innerHeight-12) top=Math.max(12,window.innerHeight-h-12);
   remindPanel.style.left=Math.max(12,left)+'px';
   remindPanel.style.top=top+'px';
