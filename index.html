@@ -123,6 +123,24 @@ html[data-theme="light"] .brand h1{background:linear-gradient(100deg,#1b2130 10%
 }
 .icon-btn:hover{background:var(--panel-2);color:var(--text);border-color:var(--stroke)}
 .icon-btn svg{width:17px;height:17px}
+/* 截止日期提醒：铃铛 */
+.icon-btn.bell{position:relative}
+.bell-count{
+  position:absolute;top:0;right:0;min-width:16px;height:16px;padding:0 4px;
+  border-radius:999px;background:linear-gradient(135deg,var(--red),#ff8a3d);
+  color:#fff;font-size:9.5px;font-weight:800;line-height:16px;text-align:center;
+  font-variant-numeric:tabular-nums;border:1.5px solid var(--bg);
+}
+.bell-count[hidden]{display:none}
+.icon-btn.bell.alert{color:var(--red)}
+.icon-btn.bell.alert svg{animation:bellShake 3s ease-in-out infinite}
+@keyframes bellShake{
+  0%,86%,100%{transform:rotate(0)}
+  89%{transform:rotate(12deg)}
+  92%{transform:rotate(-10deg)}
+  95%{transform:rotate(6deg)}
+  97%{transform:rotate(-4deg)}
+}
 .btn{
   display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:10px;font-size:13px;font-weight:600;
   background:var(--panel);border:1px solid var(--stroke);color:var(--text-2);transition:.2s var(--ease);
@@ -280,6 +298,32 @@ body.dragging .list.is-source .list-body:empty::after{content:"整列拖拽中";
   position:absolute;top:9px;right:9px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:6px;
   background:linear-gradient(135deg,var(--orange),var(--red));color:#fff;letter-spacing:.3px;
 }
+/* 截止日期：卡片级视觉强化 */
+.card.due-over{border-color:rgba(255,61,90,.42)}
+.card.due-over::before{opacity:1;background:linear-gradient(180deg,#ff3d5a,#ff6a3d)}
+.card.due-today::before{opacity:1;background:linear-gradient(180deg,#ff8a3d,#ffb020)}
+.card.due-soon::before{opacity:1;background:linear-gradient(180deg,#ffb020,#f5c451)}
+/* 脉冲与闪烁统一走 .card-fx 覆盖层：
+   不改写卡片自身的 animation / box-shadow，动画未运行时只是不显示，不会留下残影 */
+.card-fx{
+  position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  opacity:0;border:1.5px solid transparent;z-index:1;
+}
+.card.due-over .card-fx{animation:duePulse 2.2s ease-in-out infinite;border-color:rgba(255,61,90,.8)}
+@keyframes duePulse{0%,100%{opacity:0}50%{opacity:.95}}
+.due-chip{
+  font-size:11px;font-weight:700;padding:1.5px 7px;border-radius:6px;
+  background:var(--panel-2);color:var(--text-3);border:1px solid transparent;line-height:1.5;
+}
+.due-chip.due-over{background:rgba(255,61,90,.16);color:#ff5c5c;border-color:rgba(255,61,90,.34)}
+.due-chip.due-today{background:rgba(255,138,61,.16);color:#ff8a3d;border-color:rgba(255,138,61,.34)}
+.due-chip.due-soon{background:rgba(255,176,32,.15);color:#e0a020;border-color:rgba(255,176,32,.30)}
+html[data-theme="light"] .due-chip.due-soon{color:#b3780a}
+html[data-theme="light"] .due-chip.due-over{color:#c6283c}
+html[data-theme="light"] .due-chip.due-today{color:#b45309}
+/* 提醒中心跳转定位的闪烁 */
+.card.flash .card-fx{animation:cardFlash 1.15s ease-out;border-color:rgba(255,106,61,.9)}
+@keyframes cardFlash{0%{opacity:1}100%{opacity:0}}
 
 /* 拖拽幽灵 */
 .drag-layer{position:fixed;inset:0;pointer-events:none;z-index:900}
@@ -344,6 +388,33 @@ body.dragging .card:not(.ghost):hover{transform:none}
 }
 .pop .opt:hover{transform:translateY(-2px) scale(1.04)}
 .pop .opt.on{border-color:#fff;box-shadow:0 0 0 2px var(--modal),0 0 0 3.5px currentColor}
+
+/* 截止日期提醒中心 */
+.remind{
+  position:fixed;z-index:1350;width:min(340px,calc(100vw - 24px));
+  padding:6px;border-radius:15px;background:var(--modal);
+  border:1px solid var(--stroke-2);box-shadow:var(--shadow);backdrop-filter:blur(20px);
+  display:none;animation:menuIn .16s var(--ease) both;
+}
+.remind.show{display:block}
+.remind-head{display:flex;align-items:baseline;gap:8px;padding:8px 10px 7px}
+.remind-head h4{margin:0;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-3);font-weight:700}
+.remind-head .rs{margin-left:auto;font-size:11px;color:var(--text-3)}
+.rgroup{padding:2px 0 4px}
+.rgroup+.rgroup{border-top:1px solid var(--stroke)}
+.rg-h{display:flex;align-items:center;gap:6px;padding:8px 10px 5px;font-size:11.5px;font-weight:700;color:var(--text-2)}
+.rg-h .dot{width:7px;height:7px;border-radius:50%;flex:none}
+.rg-h b{font-variant-numeric:tabular-nums}
+.ritem{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:10px;transition:background .14s}
+.ritem:hover{background:var(--panel-2)}
+.ri-t{
+  display:block;font-size:13px;font-weight:600;color:var(--text);line-height:1.4;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ri-s{display:flex;align-items:center;gap:6px;margin-top:3px;font-size:11px;color:var(--text-3);min-width:0}
+.ri-s .ldot{width:6px;height:6px;border-radius:50%;flex:none}
+.ri-s .lname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.remind-empty{padding:22px 12px;text-align:center;font-size:12.5px;color:var(--text-3)}
 
 /* Toast */
 .toast-wrap{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1600;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
@@ -509,6 +580,13 @@ body.dragging .card:not(.ghost):hover{transform:none}
       </div>
       <div class="spacer"></div>
       <div class="stats" id="stats"></div>
+      <button class="icon-btn bell" id="remindBtn" title="截止日期提醒">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
+        </svg>
+        <span class="bell-count" id="remindCount" hidden>0</span>
+      </button>
       <button class="icon-btn" id="themeBtn" title="切换主题">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
@@ -544,6 +622,10 @@ body.dragging .card:not(.ghost):hover{transform:none}
 <div class="drag-layer" id="dragLayer"></div>
 <div class="menu" id="menu"></div>
 <div class="pop" id="labelPop"><h4>标签颜色</h4><div class="grid" id="labelGrid"></div></div>
+<div class="remind" id="remindPanel">
+  <div class="remind-head"><h4>截止日期提醒</h4><span class="rs" id="remindSub"></span></div>
+  <div id="remindBody"></div>
+</div>
 <div class="scrim" id="scrim"></div>
 
 <div class="modal" id="modal">
@@ -672,6 +754,25 @@ function fmtDate(iso){
   if(diff<-1&&diff>=-6) return '逾期 '+(-diff)+' 天';
   return (+p[1])+'月'+(+p[2])+'日';
 }
+/* 截止日期状态：over=已逾期 / today=今天到期 / soon=临期 / ''=无期限 */
+const DUE_SOON_DAYS=3;
+function dueDays(card){
+  if(!card||!card.due) return null;
+  const p=String(card.due).split('-');
+  if(p.length<3) return null;
+  const d=new Date(+p[0],+p[1]-1,+p[2]);
+  if(isNaN(d.getTime())) return null;
+  const now=new Date(); now.setHours(0,0,0,0);
+  return Math.round((d-now)/86400000);
+}
+function dueState(card){
+  const n=dueDays(card);
+  if(n===null) return '';
+  if(n<0) return 'over';
+  if(n===0) return 'today';
+  if(n<=DUE_SOON_DAYS) return 'soon';
+  return '';
+}
 function autoGrow(ta){
   ta.style.height='auto';
   ta.style.height=ta.scrollHeight+'px';
@@ -751,6 +852,7 @@ if(!board.title) board.title='Aurora Board';
 
 function save(){
   try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
+  renderRemind();
 }
 function savePref(){
   try{ localStorage.setItem(PREF,JSON.stringify({theme:document.documentElement.dataset.theme})); }catch(e){}
@@ -775,16 +877,19 @@ const dragLayer=$('#dragLayer');
 function cardColor(card){
   return card.labels&&card.labels.length ? (LABEL_COLORS[card.labels[0]]||'#ff6a3d') : '#ff6a3d';
 }
-function metaDueClass(card){
-  if(!card.due) return '';
-  const t=todayStr();
-  if(card.due<t) return 'danger';
-  if(card.due===t) return 'warn';
-  return '';
+function applyDueState(node,card){
+  const s=dueState(card);
+  node.classList.remove('due-over','due-today','due-soon');
+  if(s) node.classList.add('due-'+s);
+  if(node._chip){
+    node._chip.textContent=fmtDate(card.due);
+    node._chip.className='due-chip'+(s?' due-'+s:'');
+  }
 }
 function buildCard(card){
   const node=el('article','card');
   node.dataset.id=card.id;
+  node.appendChild(el('i','card-fx'));
 
   if(card.labels&&card.labels.length){
     const box=el('div','card-labels');
@@ -810,9 +915,11 @@ function buildCard(card){
   if(card.due||total||cmt){
     const meta=el('div','card-meta');
     if(card.due){
-      const m=el('span','meta '+metaDueClass(card));
+      const m=el('span','meta');
       m.appendChild(svg(['M8 2v4M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']));
-      m.appendChild(el('span',null,fmtDate(card.due)));
+      const chip=el('span','due-chip',fmtDate(card.due));
+      m.appendChild(chip);
+      node._chip=chip;
       meta.appendChild(m);
     }
     if(total){
@@ -835,6 +942,7 @@ function buildCard(card){
     const i=el('i'); i.style.width=(total?done/total*100:0)+'%';
     p.appendChild(i); node.appendChild(p);
   }
+  applyDueState(node,card);
   return node;
 }
 
@@ -1704,6 +1812,103 @@ $('#cmAdd').addEventListener('click',addComment);
 $('#cmInput').addEventListener('keydown',e=>{ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();addComment();} });
 
 /* ============================================================
+   截止日期提醒
+   ============================================================ */
+const remindBtn=$('#remindBtn');
+const remindPanel=$('#remindPanel');
+const remindBody=$('#remindBody');
+
+function dueBuckets(){
+  const over=[],today=[],soon=[];
+  board.lists.forEach(l=>l.cards.forEach(c=>{
+    if(!c||!c.due) return;
+    const s=dueState(c);
+    if(s==='over') over.push({c:c,l:l});
+    else if(s==='today') today.push({c:c,l:l});
+    else if(s==='soon') soon.push({c:c,l:l});
+  }));
+  // 逾期按到期日升序（越早逾期越靠前）；临期同理（越早到期越靠前）。
+  // due 是 ISO 日期串，字典序即时间序，可直接比较。
+  over.sort((a,b)=>a.c.due<b.c.due?-1:1);
+  soon.sort((a,b)=>a.c.due<b.c.due?-1:1);
+  return {over:over,today:today,soon:soon};
+}
+function renderRemind(){
+  if(typeof board==='undefined'||!board||!remindBtn) return;
+  const b=dueBuckets();
+  const urgent=b.over.length+b.today.length;
+  const total=urgent+b.soon.length;
+  const cnt=$('#remindCount');
+  cnt.textContent=String(urgent);
+  cnt.hidden=urgent===0;
+  remindBtn.classList.toggle('alert',urgent>0);
+  remindBtn.title=urgent?('截止日期提醒：'+urgent+' 张需立即处理'):'截止日期提醒';
+  $('#remindSub').textContent=total?('共 '+total+' 张'):'';
+
+  const keepTop=remindPanel.scrollTop;
+  remindBody.innerHTML='';
+  if(!total){
+    remindBody.appendChild(el('div','remind-empty','暂无到期的卡片'));
+  }else{
+    const group=(title,color,items)=>{
+      const g=el('div','rgroup');
+      const h=el('div','rg-h');
+      const d=el('span','dot'); d.style.background=color;
+      h.append(d,el('span',null,title),el('b',null,String(items.length)));
+      g.appendChild(h);
+      items.forEach(it=>{
+        const btn=el('button','ritem');
+        btn.appendChild(el('span','ri-t',it.c.title||'未命名卡片'));
+        const s=el('span','ri-s');
+        const ld=el('span','ldot'); ld.style.background=it.l.color;
+        s.append(ld,el('span','lname',it.l.title),el('span',null,'· '+fmtDate(it.c.due)));
+        btn.appendChild(s);
+        btn.addEventListener('click',()=>gotoCard(it.c.id));
+        g.appendChild(btn);
+      });
+      remindBody.appendChild(g);
+    };
+    if(b.over.length) group('逾期','#ff5c5c',b.over);
+    if(b.today.length) group('今天到期','#ff8a3d',b.today);
+    if(b.soon.length) group('即将到期（'+DUE_SOON_DAYS+' 天内）','#ffb020',b.soon);
+  }
+  remindPanel.scrollTop=keepTop;
+}
+function openRemind(){
+  renderRemind();
+  remindPanel.classList.add('show');
+  const r=remindBtn.getBoundingClientRect();
+  const w=remindPanel.offsetWidth,h=remindPanel.offsetHeight;
+  let left=Math.min(r.right-w,window.innerWidth-w-12);
+  let top=r.bottom+8;
+  if(top+h>window.innerHeight-12) top=Math.max(12,window.innerHeight-h-12);
+  remindPanel.style.left=Math.max(12,left)+'px';
+  remindPanel.style.top=top+'px';
+}
+function closeRemind(){ remindPanel.classList.remove('show'); }
+/* 从提醒中心跳到卡片：清筛选 → 滚动定位 → 闪烁 → 开详情 */
+function gotoCard(cardId){
+  closeRemind();
+  if(!findCard(cardId).card) return;
+  const node=boardEl.querySelector('.card[data-id="'+cardId+'"]');
+  if(!node) return;
+  if(node.classList.contains('hidden')){
+    query=''; $('#search').value=''; $('#searchBox').classList.remove('has');
+    activeLabels.clear(); renderFilterChips(); applyFilter();
+  }
+  node.scrollIntoView({block:'center',behavior:'smooth'});
+  node.classList.add('flash');
+  setTimeout(()=>node.classList.remove('flash'),1200);
+  setTimeout(()=>openModal(node),300);
+}
+remindBtn.addEventListener('click',()=>{
+  if(remindPanel.classList.contains('show')) closeRemind(); else openRemind();
+});
+document.addEventListener('pointerdown',e=>{
+  if(!remindPanel.contains(e.target)&&!remindBtn.contains(e.target)) closeRemind();
+},true);
+
+/* ============================================================
    顶栏动作
    ============================================================ */
 $('#boardTitle').addEventListener('blur',e=>{
@@ -1761,6 +1966,7 @@ $('#resetBtn').addEventListener('click',async()=>{
    ============================================================ */
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
+    if(remindPanel.classList.contains('show')) return closeRemind();
     if(popEl.classList.contains('show')) return closePop();
     if(menuEl.classList.contains('show')) return closeMenu();
     if(cf.classList.contains('show')) return closeConfirm(false);
@@ -1774,6 +1980,21 @@ document.addEventListener('dragstart',e=>{ if(e.target.closest&&e.target.closest
 
 /* 启动 */
 renderBoard();
+renderRemind();
+
+/* 跨天守护：页面开着过夜时"今天"会变成"昨天"，
+   需重算全部卡片的到期状态与提醒中心（每分钟检查日期是否翻篇） */
+let lastDay=todayStr();
+setInterval(()=>{
+  const t=todayStr();
+  if(t===lastDay) return;
+  lastDay=t;
+  allCards().forEach(c=>{
+    const node=boardEl.querySelector('.card[data-id="'+c.id+'"]');
+    if(node) applyDueState(node,c);
+  });
+  renderRemind();
+},60000);
 </script>
 </body>
 </html>
