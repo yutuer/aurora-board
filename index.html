@@ -72,6 +72,8 @@ body{
 ::-webkit-scrollbar-thumb{background:var(--stroke-2);border-radius:20px;border:2px solid transparent;background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-3);background-clip:padding-box}
 button,input,textarea{font:inherit;color:inherit}
+/* 视觉隐藏但仍在 DOM 中（文件选择框；用 display:none 会让它无法被自动化工具定位） */
+.vh{position:absolute;left:-9999px;top:auto;width:1px;height:1px;opacity:0;pointer-events:none}
 button{cursor:pointer;border:none;background:none}
 input,textarea{outline:none}
 :focus-visible{outline:2px solid var(--orange);outline-offset:2px}
@@ -122,7 +124,9 @@ html[data-theme="light"] .brand h1{background:linear-gradient(100deg,#1b2130 10%
   border:1px solid transparent;transition:.2s var(--ease);flex:none;
 }
 .icon-btn:hover{background:var(--panel-2);color:var(--text);border-color:var(--stroke)}
+.icon-btn.on{color:var(--orange);border-color:var(--stroke-2);background:var(--panel-2)}
 .icon-btn svg{width:17px;height:17px}
+.sync-tip{font-size:10.5px;color:var(--text-3);white-space:nowrap;flex:none;max-width:150px;overflow:hidden;text-overflow:ellipsis}
 /* 截止日期提醒：铃铛 */
 .icon-btn.bell{position:relative}
 .bell-count{
@@ -279,6 +283,22 @@ body.dragging .list.is-source .list-body:empty::after{content:"整列拖拽中";
 .card.hidden{display:none}
 .card-labels{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
 .card-labels:empty{display:none}
+/* 卡片状态：列表恒定按项目，进度用状态标记表达（agent 工单流） */
+.st-chip{
+  font-size:10.5px;font-weight:700;padding:2.5px 8px;border-radius:6px;letter-spacing:.3px;
+  border:1px solid currentColor;background:transparent;flex:none;
+}
+.st-picker{display:flex;gap:6px;flex-wrap:wrap}
+.st-btn{
+  padding:5px 11px;border-radius:8px;font-size:12px;font-weight:700;
+  border:1px solid var(--stroke);background:var(--panel);color:var(--text-3);transition:.16s var(--ease);
+}
+.st-btn:hover{border-color:var(--stroke-2);color:var(--text-2)}
+.st-btn.on{color:#fff;border-color:transparent;box-shadow:0 4px 12px -4px rgba(0,0,0,.5)}
+.st-btn.on[data-st="todo"]{background:#7d879c}
+.st-btn.on[data-st="doing"]{background:#4d9dff}
+.st-btn.on[data-st="review"]{background:#ff8a3d}
+.st-btn.on[data-st="done"]{background:#3ecf8e}
 .lbl{
   font-size:10.5px;font-weight:700;padding:2.5px 8px;border-radius:6px;letter-spacing:.3px;
   color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.22);
@@ -291,8 +311,32 @@ body.dragging .list.is-source .list-body:empty::after{content:"整列拖拽中";
 }
 .card-desc{
   font-size:12px;color:var(--text-3);margin-top:5px;line-height:1.5;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;
+  word-break:break-word;max-height:186px;overflow:hidden;
 }
+/* 富文本渲染（卡片预览与弹窗共用）：
+   注意 —— 这里的 HTML 全部由 mdToHtml() 生成（用户文本先转义再结构化替换），
+   不存在把用户原文直接塞进 innerHTML 的路径 */
+.rd img{max-width:100%;border-radius:8px;border:1px solid var(--stroke);display:block}
+.rd p{margin:0 0 4px}
+.rd p:last-child{margin-bottom:0}
+.rd ul,.rd ol{margin:3px 0;padding-left:18px}
+.rd li{margin:1px 0}
+.rd h3,.rd h4,.rd h5,.rd h6{margin:6px 0 2px;font-size:12.5px;color:var(--text-2);font-weight:700}
+.rd code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;background:var(--panel-2);padding:1px 5px;border-radius:4px}
+.rd blockquote{margin:5px 0;padding-left:9px;border-left:2px solid var(--stroke-2);color:var(--text-2)}
+.rd a{color:var(--orange);text-decoration:none;word-break:break-all}
+.rd a:hover{text-decoration:underline}
+.rd hr{border:none;border-top:1px solid var(--stroke);margin:7px 0}
+.rd del{opacity:.7}
+.rd .rd-bad{color:var(--red);font-size:11px}
+.rd .rd-imgs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.rd .rd-imgs img{width:auto;max-height:96px;object-fit:cover}
+/* 弹窗内的描述：编辑区 + 预览区 */
+.m-desc-bar{display:flex;align-items:center;gap:8px;margin-top:14px;margin-bottom:5px}
+.m-desc-bar .hint{flex:1;font-size:11px;color:var(--text-3)}
+.m-desc-view{margin-top:8px;font-size:13px;color:var(--text-2);line-height:1.65}
+.m-desc-view:empty{display:none}
+.m-desc-view img{max-height:300px;object-fit:contain;margin:5px 0}
 .card-meta{display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap}
 .meta{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
 .meta svg{width:13px;height:13px;flex:none}
@@ -654,8 +698,15 @@ body.dragging .card:not(.ghost):hover{transform:none}
       <button class="icon-btn" id="resetBtn" title="恢复示例数据">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
       </button>
+      <button class="icon-btn" id="syncBtn" title="与本地文件双向同步（agent 工单流通道）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      </button>
+      <span class="sync-tip" id="syncTip"></span>
       <span class="build-stamp" id="build-stamp">dev</span>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
+      <input type="file" id="importFile" accept="application/json,.json" class="vh">
     </div>
     <div class="toolbar">
       <div class="search" id="searchBox">
@@ -665,6 +716,7 @@ body.dragging .card:not(.ghost):hover{transform:none}
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
+      <div class="filter-chips" id="statusChips"><span class="filter-label">状态</span></div>
       <div class="filter-chips" id="filterChips"><span class="filter-label">标签</span></div>
       <button class="icon-btn" id="tagMgrBtn" title="管理标签（新增 / 改名 / 改色 / 删除）">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -721,7 +773,15 @@ body.dragging .card:not(.ghost):hover{transform:none}
   <div class="m-body">
     <div>
       <textarea class="m-title" id="mTitle" rows="1" placeholder="卡片标题"></textarea>
+      <div class="m-desc-bar">
+        <span class="hint">支持粘贴 / 拖入图片；Markdown：## 标题 · **粗体** · - 列表 · [链接](url)</span>
+        <button class="mini" id="mDescImg">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>图片
+        </button>
+      </div>
       <textarea class="m-desc" id="mDesc" placeholder="补充描述…支持多行"></textarea>
+      <div class="m-desc-view rd" id="mDescView"></div>
+      <input type="file" id="mDescFile" accept="image/*" class="vh">
 
       <section class="sec">
         <div class="sec-h">子任务 <span class="n" id="stCount"></span><span class="grow"></span></div>
@@ -749,6 +809,10 @@ body.dragging .card:not(.ghost):hover{transform:none}
     </div>
 
     <aside class="side">
+      <div class="field">
+        <div class="k">状态</div>
+        <div class="st-picker" id="mStatus"></div>
+      </div>
       <div class="field">
         <div class="k">标签</div>
         <div class="m-labels" id="mLabels"></div>
@@ -884,6 +948,16 @@ const LIST_COLORS = ['#ff6a3d','#ffb020','#3ecf8e','#4d9dff','#a77bff','#2fd6c4'
 const STORE='aurora.board.v1';
 const PREF='aurora.pref.v1';
 const LABELS_STORE='aurora.labels.v1';
+/* 卡片状态：列表恒定按项目命名，进度用状态标记表达（agent 工单流）。
+   流转：待处理 → 处理中 → 待复查（人来复查）→ 已确认 */
+const STATUSES={
+  todo  :{name:'待处理',color:'#7d879c'},
+  doing :{name:'处理中',color:'#4d9dff'},
+  review:{name:'待复查',color:'#ff8a3d'},
+  done  :{name:'已确认',color:'#3ecf8e'}
+};
+const STATUS_KEYS=['todo','doing','review','done'];
+function statusOf(card){ return (card&&STATUSES[card.status])?card.status:'todo'; }
 
 /* ============================================================
    数据
@@ -891,7 +965,7 @@ const LABELS_STORE='aurora.labels.v1';
 function mkCard(o){
   return Object.assign({
     id:uid('c'), title:'未命名卡片', desc:'', labels:[], due:'',
-    subtasks:[], comments:[], created:new Date().toISOString()
+    status:'todo', subtasks:[], comments:[], created:new Date().toISOString()
   },o||{});
 }
 function mkList(title,color,cards){
@@ -986,10 +1060,15 @@ try{
 }catch(e){ board=seed(); }
 if(!board.title) board.title='Aurora Board';
 pruneDanglingLabels();
+/* 旧数据没有 status 字段 → 补默认「待处理」，避免状态筛选把老卡片滤掉 */
+board.lists.forEach(l=>l.cards.forEach(c=>{
+  if(!STATUSES[c.status]) c.status='todo';
+}));
 
 function save(){
   try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
   renderRemind();
+  if(!suppressFileWrite) scheduleFileWrite();
 }
 function savePref(){
   try{ localStorage.setItem(PREF,JSON.stringify({theme:document.documentElement.dataset.theme})); }catch(e){}
@@ -1028,9 +1107,15 @@ function buildCard(card){
   node.dataset.id=card.id;
   node.appendChild(el('i','card-fx'));
 
-  if(card.labels&&card.labels.length){
+  const st=statusOf(card);
+  if((card.labels&&card.labels.length)||st!=='todo'){
     const box=el('div','card-labels');
-    card.labels.forEach(k=>{
+    if(st!=='todo'){
+      const sc=el('span','st-chip',STATUSES[st].name);
+      sc.style.color=STATUSES[st].color;
+      box.appendChild(sc);
+    }
+    (card.labels||[]).forEach(k=>{
       const c=labelColor(k);
       const l=el('span','lbl'+(isLight(c)?' dark':''),labelName(k));
       l.style.background=c;
@@ -1043,7 +1128,8 @@ function buildCard(card){
   node.appendChild(t);
 
   if(card.desc){
-    const d=el('div','card-desc',card.desc);
+    const d=el('div','card-desc rd');
+    d.innerHTML=renderRich(card.desc,'card');
     node.appendChild(d);
   }
 
@@ -1145,23 +1231,47 @@ function renderBoard(){
   add.addEventListener('click',addList);
   boardEl.appendChild(add);
   $('#boardTitle').textContent=board.title;
-  renderStats(); renderFilterChips(); applyFilter();
+  renderStats(); renderStatusChips(); renderFilterChips(); applyFilter();
 }
 
 function renderStats(){
   const cards=allCards();
   const st=cards.reduce((a,c)=>a+(c.subtasks?c.subtasks.length:0),0);
   const sd=cards.reduce((a,c)=>a+(c.subtasks?c.subtasks.filter(s=>s.done).length:0),0);
+  const rv=cards.filter(c=>statusOf(c)==='review').length;
   const box=$('#stats');
   box.innerHTML='';
   const mk=(n,v)=>{const d=el('span','stat'); d.appendChild(el('b',null,String(v))); d.appendChild(el('span',null,n)); return d;};
-  box.append(mk('列',board.lists.length),mk('卡片',cards.length),mk('子任务',sd+'/'+st));
+  box.append(mk('列',board.lists.length),mk('卡片',cards.length),mk('待复查',rv),mk('子任务',sd+'/'+st));
 }
 
 /* ============================================================
    筛选
    ============================================================ */
-let query='', activeLabels=new Set();
+let query='', activeLabels=new Set(), activeStatus=new Set();
+/* 状态筛选：点「待复查」即进入复查工作台 —— 跨所有项目列筛出待复查的卡片 */
+function renderStatusChips(){
+  const box=$('#statusChips');
+  box.innerHTML='';
+  box.appendChild(el('span','filter-label','状态'));
+  STATUS_KEYS.forEach(k=>{
+    const s=STATUSES[k];
+    const b=el('button','fc');
+    const d=el('span','dot'); d.style.background=s.color;
+    b.append(d,el('span',null,s.name));
+    if(activeStatus.has(k)){ b.classList.add('on'); b.style.background=s.color; }
+    b.addEventListener('click',()=>{
+      if(activeStatus.has(k)) activeStatus.delete(k); else activeStatus.add(k);
+      renderStatusChips(); applyFilter();
+    });
+    box.appendChild(b);
+  });
+  if(activeStatus.size){
+    const clr=el('button','fc','清除');
+    clr.addEventListener('click',()=>{activeStatus.clear();renderStatusChips();applyFilter();});
+    box.appendChild(clr);
+  }
+}
 function renderFilterChips(){
   const box=$('#filterChips');
   box.innerHTML='';
@@ -1193,6 +1303,7 @@ function renderFilterChips(){
   }
 }
 function matchCard(c){
+  if(activeStatus.size&&!activeStatus.has(statusOf(c))) return false;
   if(activeLabels.size){
     for(const k of activeLabels) if(!(c.labels||[]).includes(k)) return false;
   }
@@ -1219,6 +1330,248 @@ $('#search').addEventListener('input',e=>{
 $('#searchClear').addEventListener('click',()=>{
   query=''; $('#search').value=''; $('#searchBox').classList.remove('has'); applyFilter();
 });
+
+/* ============================================================
+   富文本描述（Markdown 子集）+ 图片存储
+   ============================================================ */
+const IDB_NAME='aurora-media', IDB_STORE='imgs';
+let idbPromise=null;
+const imgCache=new Map();   // 图片 id → dataURL（内存缓存，渲染时同步取用）
+
+function idb(){
+  if(!idbPromise) idbPromise=new Promise((res,rej)=>{
+    const r=indexedDB.open(IDB_NAME,2);
+    r.onupgradeneeded=()=>{ const db=r.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
+    };
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error);
+  });
+  return idbPromise;
+}
+async function metaSet(k,v){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction('meta','readwrite');
+    tx.objectStore('meta').put(v,k);
+    tx.oncomplete=()=>res(true);
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+async function metaGet(k){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction('meta','readonly');
+    const q=tx.objectStore('meta').get(k);
+    q.onsuccess=()=>res(q.result||null);
+    q.onerror=()=>rej(tx.error);
+  });
+}
+async function idbPut(id,rec){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(rec,id);
+    tx.oncomplete=()=>res(true);
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+async function idbGet(id){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readonly');
+    const q=tx.objectStore(IDB_STORE).get(id);
+    q.onsuccess=()=>res(q.result||null);
+    q.onerror=()=>rej(tx.error);
+  });
+}
+async function idbAll(){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readonly');
+    const st=tx.objectStore(IDB_STORE);
+    const kq=st.getAllKeys(), vq=st.getAll();
+    tx.oncomplete=()=>{ const m={}; kq.result.forEach((k,i)=>{ m[k]=vq.result[i]; }); res(m); };
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+async function idbDel(id){
+  const db=await idb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(id);
+    tx.oncomplete=()=>res(true);
+    tx.onerror=()=>rej(tx.error);
+  });
+}
+async function loadImages(){
+  try{
+    const all=await idbAll();
+    Object.keys(all).forEach(k=>{ const r=all[k]; if(r&&r.data) imgCache.set(k,r.data); });
+  }catch(e){}
+}
+/* 图片压缩：canvas 缩放 + JPEG 编码。截图类图片不含透明通道，白底填充安全 */
+function compressImage(file,maxSide,q){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>rej(new Error('读取失败'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>rej(new Error('图片解码失败'));
+      im.onload=()=>{
+        let w=im.width,h=im.height;
+        const sc=Math.min(1,(maxSide||1600)/Math.max(w,h));
+        w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc));
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        const ctx=cv.getContext('2d');
+        ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+        ctx.drawImage(im,0,0,w,h);
+        try{ res(cv.toDataURL('image/jpeg',q||0.82)); }catch(e){ rej(e); }
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function storeImage(file){
+  const data=await compressImage(file);
+  const id='img_'+uid('x');
+  await idbPut(id,{mime:'image/jpeg',data:data});
+  imgCache.set(id,data);
+  return id;
+}
+/* 被描述引用的图片 id */
+function collectImageIds(){
+  const ids=new Set();
+  const re=/!\[[^\]]*\]\(img:([A-Za-z0-9_-]+)\)/g;
+  allCards().forEach(c=>{
+    const s=c.desc||'';
+    let m;
+    while((m=re.exec(s))) ids.add(m[1]);
+  });
+  return Array.from(ids);
+}
+async function gcImages(){
+  const used=new Set(collectImageIds());
+  for(const k of Array.from(imgCache.keys())){
+    if(used.has(k)) continue;
+    imgCache.delete(k);
+    try{ await idbDel(k); }catch(e){}
+  }
+}
+/* ---------------- Markdown 子集 → 受控 HTML ----------------
+   安全模型：用户文本先整体 HTML 转义，再在转义后的文本上做结构化替换，
+   所有标签与属性都由本模块生成 → 用户内容无法逃逸成标签。
+   因此这里用 innerHTML 落地是安全的（不要改成直接塞用户原文）。 */
+function escHtml(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function safeLinkUrl(u){
+  const s=String(u||'').trim();
+  return /^(https?:|mailto:)/i.test(s)?s:'';
+}
+function safeImgUrl(u){
+  const s=String(u||'').trim();
+  if(/^img:[A-Za-z0-9_-]+$/.test(s)) return s;
+  return /^https?:\/\//i.test(s)?s:'';
+}
+function imgHtml(alt,u){
+  const url=safeImgUrl(u);
+  if(!url) return '<span class="rd-bad">[图片不可用]</span>';
+  if(url.slice(0,4)==='img:'){
+    const d=imgCache.get(url.slice(4));
+    if(!d) return '<span class="rd-bad">[图片缺失]</span>';
+    return '<img src="'+d+'" alt="'+alt+'" loading="lazy">';
+  }
+  return '<img src="'+url+'" alt="'+alt+'" loading="lazy" referrerpolicy="no-referrer">';
+}
+function linkHtml(text,u){
+  const url=safeLinkUrl(u);
+  return url?'<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+text+'</a>':text;
+}
+function inlineMd(s){
+  let x=String(s==null?'':s);
+  const codes=[];
+  x=x.replace(/`([^`]+)`/g,(m,c)=>{ codes.push(c); return '\u0000'+(codes.length-1)+'\u0000'; });
+  x=x.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,(m,a,u)=>imgHtml(a,u));
+  x=x.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(m,t,u)=>linkHtml(t,u));
+  x=x.replace(/~~([^~]+)~~/g,'<del>$1</del>');
+  x=x.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  x=x.replace(/\*([^*]+)\*/g,'<em>$1</em>');
+  x=x.replace(/\n/g,'<br>');
+  x=x.replace(/\u0000(\d+)\u0000/g,(m,i)=>'<code>'+codes[+i]+'</code>');
+  return x;
+}
+function mdToHtml(src){
+  const lines=escHtml(String(src||'').replace(/\u0000/g,'')).split(/\r?\n/);
+  const out=[];
+  let i=0, listType=null;
+  const closeList=()=>{ if(listType){ out.push('</'+listType+'>'); listType=null; } };
+  while(i<lines.length){
+    const line=lines[i];
+    if(!line.trim()){ closeList(); i++; continue; }
+    let m=line.match(/^(#{1,4})\s+(.*)$/);
+    if(m){ closeList(); const lv=Math.min(6,m[1].length+2); out.push('<h'+lv+'>'+inlineMd(m[2])+'</h'+lv+'>'); i++; continue; }
+    if(/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)){ closeList(); out.push('<hr>'); i++; continue; }
+    if(/^\s*&gt;\s?/.test(line)){
+      closeList();
+      const buf=[];
+      while(i<lines.length && /^\s*&gt;\s?/.test(lines[i])){ buf.push(lines[i].replace(/^\s*&gt;\s?/,'')); i++; }
+      out.push('<blockquote>'+inlineMd(buf.join('\n'))+'</blockquote>');
+      continue;
+    }
+    m=line.match(/^\s*([-*+])\s+(.*)$/);
+    if(m){
+      if(listType!=='ul'){ closeList(); out.push('<ul>'); listType='ul'; }
+      out.push('<li>'+inlineMd(m[2])+'</li>'); i++; continue;
+    }
+    m=line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if(m){
+      if(listType!=='ol'){ closeList(); out.push('<ol>'); listType='ol'; }
+      out.push('<li>'+inlineMd(m[1])+'</li>'); i++; continue;
+    }
+    closeList();
+    const buf=[line]; i++;
+    while(i<lines.length && lines[i].trim() && !/^\s*(#{1,4}\s|[-*+]\s|\d+[.)]\s|&gt;)/.test(lines[i])){ buf.push(lines[i]); i++; }
+    out.push('<p>'+inlineMd(buf.join('\n'))+'</p>');
+  }
+  closeList();
+  return out.join('');
+}
+/* mode:'card' → 图片提到最前、缩略图展示；'full' → 保持原序完整展示 */
+function renderRich(src,mode){
+  let html=mdToHtml(src);
+  if(mode==='card'){
+    const imgs=[];
+    html=html.replace(/<img\b[^>]*>/g,m=>{ imgs.push(m); return ''; });
+    html=html.replace(/<p>\s*<\/p>/g,'');
+    if(imgs.length) html='<div class="rd-imgs">'+imgs.join('')+'</div>'+html;
+  }
+  return html;
+}
+function updateDescView(){
+  const v=$('#mDescView');
+  if(v) v.innerHTML=renderRich($('#mDesc').value,'full');
+}
+function insertAtCursor(ta,text){
+  const s=ta.selectionStart||0, e=ta.selectionEnd||0;
+  ta.value=ta.value.slice(0,s)+text+ta.value.slice(e);
+  ta.selectionStart=ta.selectionEnd=s+text.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input',{bubbles:true}));
+}
+async function addImageToDesc(file){
+  const card=modalCtx&&modalCtx.cardId?findCard(modalCtx.cardId).card:null;
+  if(!card){ toast('请先打开卡片'); return; }
+  try{
+    const id=await storeImage(file);
+    insertAtCursor($('#mDesc'),'![截图](img:'+id+')');
+    toast('图片已插入');
+  }catch(e){ toast('图片插入失败：'+((e&&e.message)||'未知错误')); }
+}
 
 /* ============================================================
    Toast
@@ -1516,6 +1869,7 @@ async function deleteCard(cardId){
   if(node){ node.style.transition='opacity .18s,transform .18s'; node.style.opacity='0'; node.style.transform='scale(.92)';
     setTimeout(()=>node.remove(),190); }
   updateListMeta(list.id); renderStats(); renderFilterChips(); applyFilter();
+  gcImages();
   toast('已删除卡片');
 }
 
@@ -1802,6 +2156,23 @@ function closeModal(){
 $('#mClose').addEventListener('click',closeModal);
 scrimEl.addEventListener('click',closeModal);
 
+function renderStatusPicker(card){
+  const box=$('#mStatus');
+  box.innerHTML='';
+  const cur=statusOf(card);
+  STATUS_KEYS.forEach(k=>{
+    const b=el('button','st-btn'+(k===cur?' on':''),STATUSES[k].name);
+    b.dataset.st=k;
+    if(k===cur) b.style.background=STATUSES[k].color;
+    b.addEventListener('click',()=>{
+      if(!card) return;
+      card.status=k;
+      save(); renderStatusPicker(card); refreshCardEl(card); renderStats();
+      toast('状态已改为「'+STATUSES[k].name+'」');
+    });
+    box.appendChild(b);
+  });
+}
 function fillModal(card,list){
   $('#mCrumb .dot').style.background=list.color;
   $('#mCrumb .txt').textContent=list.title;
@@ -1809,11 +2180,13 @@ function fillModal(card,list){
   t.value=card.title||''; autoGrow(t);
   const d=$('#mDesc');
   d.value=card.desc||''; autoGrow(d);
+  updateDescView();
   const due=$('#mDue'); due.value=card.due||'';
   due.classList.toggle('over',!!card.due&&card.due<todayStr());
   const cd=new Date(card.created||Date.now());
   $('#mCreated').textContent=cd.toLocaleString('zh-CN',{hour12:false});
   renderModalLabels(card);
+  renderStatusPicker(card);
   renderSubtasks(card);
   renderComments(card);
 }
@@ -1854,6 +2227,7 @@ $('#mTitle').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefaul
 $('#mDesc').addEventListener('input',e=>{
   const c=findCard(modalCtx.cardId).card; if(!c) return;
   autoGrow(e.target); c.desc=e.target.value; save(); refreshCardEl(c);
+  updateDescView();
 });
 $('#mDue').addEventListener('change',e=>{
   const c=findCard(modalCtx.cardId).card; if(!c) return;
@@ -2267,6 +2641,212 @@ document.addEventListener('pointerdown',e=>{
   closeRemind();
 },true);
 
+$('#mDescImg').addEventListener('click',()=>$('#mDescFile').click());
+$('#mDescFile').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(f) addImageToDesc(f);
+});
+$('#mDesc').addEventListener('paste',e=>{
+  const items=(e.clipboardData||{}).items||[];
+  for(const it of items){
+    if(it.type&&it.type.indexOf('image')===0){
+      const f=it.getAsFile();
+      if(f){ e.preventDefault(); addImageToDesc(f); }
+      return;
+    }
+  }
+});
+$('#mDesc').addEventListener('dragover',e=>{ e.preventDefault(); });
+$('#mDesc').addEventListener('drop',e=>{
+  e.preventDefault();
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f&&f.type&&f.type.indexOf('image')===0) addImageToDesc(f);
+});
+/* ============================================================
+   本地文件桥（agent 工单流的通道）
+   面板 ↔ 本地 board.json 双向自动同步：面板改动自动写盘，外部（agent）改动自动读入。
+   判据是修订号 rev：只有 rev 更大的一方才会覆盖另一方，避免互相踩。
+   ============================================================ */
+const FILE_REV_KEY='aurora.rev.v1';
+const FILE_HANDLE_KEY='fileHandle';
+/** agent 读这个文件 → 建议用户把同步文件保存在这里 */
+const SYNC_HINT='建议保存到 C:\\Users\\yutue\\WorkBuddy\\trello看板\\board.json';
+let fileHandle=null, fileSyncOn=false, pendingHandle=null;
+let fileWriteTimer=null, localRev=0, suppressFileWrite=false;
+
+try{ localRev=Number(localStorage.getItem(FILE_REV_KEY))||0; }catch(e){}
+function persistRev(){ try{ localStorage.setItem(FILE_REV_KEY,String(localRev)); }catch(e){} }
+
+/** 构造完整数据（看板 + 标签 + 内联图片），供导出与写盘共用 */
+async function buildPayload(){
+  const imgs={};
+  for(const id of collectImageIds()){
+    let d=imgCache.get(id);
+    if(!d){ try{ const rec=await idbGet(id); d=rec&&rec.data; }catch(e){} }
+    if(d) imgs[id]=d;
+  }
+  return Object.assign({},board,{app:'aurora-board',version:1,updatedAt:new Date().toISOString(),labels:labels,images:imgs});
+}
+/** 把一份外部数据应用到当前面板 */
+async function applyFileData(d){
+  if(Array.isArray(d.labels)&&d.labels.length){
+    labels=d.labels.filter(x=>x&&x.id).map(x=>({
+      id:String(x.id),
+      name:String(x.name||x.id),
+      color:/^#[0-9a-fA-F]{6}$/.test(x.color)?x.color:'#7d879c'
+    }));
+    saveLabels();
+  }
+  if(d.images&&typeof d.images==='object'){
+    for(const k of Object.keys(d.images)){
+      const data=d.images[k];
+      if(typeof data!=='string'||!data) continue;
+      const mime=(/^data:([^;]+)/.exec(data)||[])[1]||'image/jpeg';
+      try{ await idbPut(k,{mime:mime,data:data}); }catch(e){}
+      imgCache.set(k,data);
+    }
+  }
+  const nd=Object.assign({},d);
+  delete nd.labels; delete nd.images; delete nd.rev; delete nd.updatedAt; delete nd.app; delete nd.version;
+  board=nd;
+  if(!board.title) board.title='Aurora Board';
+  pruneDanglingLabels();
+  board.lists.forEach(l=>l.cards.forEach(c=>{ if(!STATUSES[c.status]) c.status='todo'; }));
+  suppressFileWrite=true;      // 刚读进来的内容不要立刻回写，避免 rev 空转
+  save();
+  suppressFileWrite=false;
+}
+function renderAll(){
+  renderBoard(); renderStats(); renderStatusChips(); renderFilterChips(); applyFilter();
+}
+async function writeFile(){
+  if(!fileHandle||!fileSyncOn) return;
+  try{
+    const payload=await buildPayload();
+    payload.rev=(Number(localRev)||0)+1;
+    const w=await fileHandle.createWritable();
+    await w.write(JSON.stringify(payload,null,2));
+    await w.close();
+    localRev=payload.rev; persistRev();
+    renderFileStatus();
+  }catch(e){
+    fileSyncOn=false; renderFileStatus();
+    toast('写入文件失败：'+((e&&e.message)||'未知错误'));
+  }
+}
+function scheduleFileWrite(){
+  if(!fileSyncOn) return;
+  clearTimeout(fileWriteTimer);
+  fileWriteTimer=setTimeout(writeFile,800);
+}
+async function readFile(){
+  if(!fileHandle||!fileSyncOn) return false;
+  try{
+    const f=await fileHandle.getFile();
+    if(!f.size) return false;
+    const d=JSON.parse(await f.text());
+    if(!d||!Array.isArray(d.lists)||!d.lists.length) return false;
+    const rev=Number(d.rev)||0;
+    if(rev<=localRev) return false;          // 本地更新，不覆盖
+    await applyFileData(d);
+    localRev=rev; persistRev();
+    renderAll();
+    toast('已同步外部更新');
+    return true;
+  }catch(e){ return false; }
+}
+function renderFileStatus(){
+  const tip=$('#syncTip');
+  if(!tip) return;
+  if(fileSyncOn&&fileHandle){
+    tip.textContent='⇄ '+fileHandle.name;
+    tip.title='正在与本地文件双向同步：'+fileHandle.name+'\n'+SYNC_HINT;
+  }else if(pendingHandle){
+    tip.textContent='⇄ 待授权';
+    tip.title='点「同步文件」重新授权';
+  }else{
+    tip.textContent='';
+    tip.title='';
+  }
+  const b=$('#syncBtn');
+  if(b) b.classList.toggle('on',!!(fileSyncOn&&fileHandle));
+}
+async function connectHandle(h){
+  fileHandle=h; fileSyncOn=true; pendingHandle=null;
+  try{ await metaSet(FILE_HANDLE_KEY,h); }catch(e){}
+  let rev=0;
+  try{
+    const f=await h.getFile();
+    if(f.size){
+      const d=JSON.parse(await f.text());
+      rev=Number(d.rev)||0;
+      if(d&&Array.isArray(d.lists)&&d.lists.length&&rev>localRev){
+        await applyFileData(d);
+        localRev=rev; persistRev();
+        renderAll();
+        toast('已从文件载入（rev '+rev+'）');
+      }
+    }
+  }catch(e){}
+  await writeFile();
+  renderFileStatus();
+}
+async function pickExistingFile(){
+  if(!window.showOpenFilePicker){ toast('当前浏览器不支持文件直连，请用右上角「导出 / 导入」'); return; }
+  try{
+    const [h]=await window.showOpenFilePicker({types:[{description:'看板数据',accept:{'application/json':['.json']}}],multiple:false});
+    await connectHandle(h);
+    toast('已连接文件：'+h.name);
+  }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
+}
+async function createSyncFile(){
+  if(!window.showSaveFilePicker){ toast('当前浏览器不支持文件直连，请用右上角「导出 / 导入」'); return; }
+  try{
+    const h=await window.showSaveFilePicker({suggestedName:'board.json',types:[{description:'看板数据',accept:{'application/json':['.json']}}]});
+    await connectHandle(h);
+    toast('已连接文件：'+h.name);
+  }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
+}
+async function restoreFileHandle(){
+  try{
+    const h=await metaGet(FILE_HANDLE_KEY);
+    if(!h||!h.queryPermission) return;
+    const p=await h.queryPermission({mode:'readwrite'});
+    if(p==='granted'){
+      fileHandle=h; fileSyncOn=true;
+      await writeFile();
+    }else{
+      pendingHandle=h;   // 需要用户手势重新授权
+    }
+    renderFileStatus();
+  }catch(e){}
+}
+$('#syncBtn').addEventListener('click',e=>{
+  const b=e.currentTarget;
+  const list=[
+    {label:'选择已有文件…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickExistingFile()},
+    {label:'新建同步文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()}
+  ];
+  if(pendingHandle){
+    list.push({label:'重新授权连接',icon:()=>svg(['M12 3l2.2 1.6 2.6-.3 1 2.4 2.2 1.4-.7 2.5 1 2.4-1.9 1.8.2 2.6-2.5.6-1.6 2.1-2.3-1.1-2.3 1.1-1.6-2.1-2.5-.6.2-2.6-1.9-1.8 1-2.4-.7-2.5L5 7.1l1-2.4 2.6.3z','M9 12l2 2 4-4']),onClick:async()=>{
+      try{
+        const p=await pendingHandle.requestPermission({mode:'readwrite'});
+        if(p==='granted'){ await connectHandle(pendingHandle); toast('已重新连接'); }
+        else toast('未获得授权');
+      }catch(err){ toast('授权失败'); }
+    }});
+  }
+  if(fileSyncOn) list.push('-',{label:'断开连接',danger:true,icon:()=>svg(['M18 6L6 18','M6 6l12 12']),onClick:()=>{
+    fileSyncOn=false; fileHandle=null; pendingHandle=null;
+    try{ metaSet(FILE_HANDLE_KEY,null); }catch(e){}
+    renderFileStatus(); toast('已断开文件同步');
+  }});
+  openMenu(b,{list:list});
+});
+window.addEventListener('focus',()=>{ if(fileSyncOn) readFile(); });
+setInterval(()=>{ if(fileSyncOn) readFile(); },4000);
+
 /* ============================================================
    顶栏动作
    ============================================================ */
@@ -2289,22 +2869,28 @@ $('#themeBtn').addEventListener('click',()=>{
   }catch(e){}
 })();
 
-$('#exportBtn').addEventListener('click',()=>{
-  // 一并导出标签表，导入方即可还原每个标签的名称与颜色
-  const payload=Object.assign({},board,{labels:labels});
+$('#exportBtn').addEventListener('click',async()=>{
+  // 一并导出标签表与图片，导入方即可完整还原（名称、颜色、截图）
+  const imgs={};
+  for(const id of collectImageIds()){
+    let d=imgCache.get(id);
+    if(!d){ try{ const rec=await idbGet(id); d=rec&&rec.data; }catch(e){} }
+    if(d) imgs[id]=d;
+  }
+  const payload=Object.assign({},board,{app:'aurora-board',version:1,updatedAt:new Date().toISOString(),labels:labels,images:imgs});
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='board-'+todayStr()+'.json';
   a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  toast('已导出 JSON');
+  toast(Object.keys(imgs).length?('已导出 JSON（含 '+Object.keys(imgs).length+' 张图片）'):'已导出 JSON');
 });
 $('#importBtn').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{
   const f=e.target.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
     try{
       const d=JSON.parse(r.result);
       if(!d||!Array.isArray(d.lists)||!d.lists.length) throw new Error('格式错误');
@@ -2316,10 +2902,22 @@ $('#importFile').addEventListener('change',e=>{
         }));
         saveLabels();
       }
-      delete d.labels;
+      // 图片：写回 IndexedDB，并入内存缓存
+      if(d.images&&typeof d.images==='object'){
+        const ks=Object.keys(d.images);
+        for(const k of ks){
+          const data=d.images[k];
+          if(typeof data!=='string'||!data) continue;
+          const mime=(/^data:([^;]+)/.exec(data)||[])[1]||'image/jpeg';
+          try{ await idbPut(k,{mime:mime,data:data}); }catch(e){}
+          imgCache.set(k,data);
+        }
+      }
+      delete d.labels; delete d.images;
       board=d;
       if(!board.title) board.title='Aurora Board';
       pruneDanglingLabels();
+      board.lists.forEach(l=>l.cards.forEach(c=>{ if(!STATUSES[c.status]) c.status='todo'; }));
       save(); renderBoard(); toast('导入成功');
     }catch(err){ toast('导入失败：'+err.message); }
   };
@@ -2351,9 +2949,13 @@ document.addEventListener('keydown',e=>{
 window.addEventListener('blur',()=>{ if(drag) onUp(); });
 document.addEventListener('dragstart',e=>{ if(e.target.closest&&e.target.closest('.card')) e.preventDefault(); });
 
-/* 启动 */
-renderBoard();
-renderRemind();
+/* 启动：先加载图片缓存，再渲染（否则图片渲染时取不到 dataURL） */
+loadImages().then(function(){
+  renderBoard();
+  renderRemind();
+  renderFileStatus();
+  restoreFileHandle();
+});
 
 /* 跨天守护：页面开着过夜时"今天"会变成"昨天"，
    需重算全部卡片的到期状态与提醒中心（每分钟检查日期是否翻篇） */

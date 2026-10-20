@@ -111,6 +111,25 @@ foreach ($kv in @(
 Check "卡片不参与伸缩 .list-body > .card{flex:none}" ($html -match '\.list-body\s*>\s*\.card\s*\{\s*flex\s*:\s*none') "缺少该规则，长列表会塌陷且没有滚动条"
 Check "列内内容区可滚动 .list-body{...overflow-y:auto}" ($html -match '\.list-body\{[^}]*overflow-y\s*:\s*auto') "缺少 overflow-y:auto"
 
+Write-Host "`n=== 6b. Agent 工单流三件套 ===" -ForegroundColor Cyan
+# 状态字段：固定枚举（不是普通标签）
+Check "状态枚举定义 (todo/doing/review/done)" ($html -match "todo\s*:\s*\{name:'待处理'" -and $html -match "review\s*:\s*\{name:'待复查'") "状态枚举缺失"
+Check "状态筛选栏 (#statusChips)" ($html -match 'id="statusChips"') "缺少状态筛选栏（复查工作台入口）"
+Check "状态写入卡片数据 (card.status)" ($html -match 'card\.status\s*=') "状态未写回数据"
+# 富文本渲染器：自写 + 白名单
+Check "Markdown 子集渲染器 (mdToHtml)" ($html -match 'function mdToHtml') "缺少渲染器"
+Check "渲染前先 HTML 转义 (escHtml)" ($html -match 'function escHtml') "缺少转义，XSS 风险"
+Check "URL 白名单（只放行 http/https/mailto）" ($html -match "safeLinkUrl" -and $html -match "safeImgUrl") "缺少 URL 白名单"
+Check "仅允许 img: / http(s) 图片地址" ($html -match '\^img:\[A-Za-z0-9_-\]\+\$') "图片地址未做白名单"
+# 图片存储：IndexedDB
+Check "图片存 IndexedDB" ($html -match "indexedDB\.open" -and $html -match "aurora-media") "缺少 IndexedDB 图片存储"
+Check "图片引用格式 ![..](img:ID)" ($html -match 'img:' -and $html -match 'collectImageIds') "缺少图片引用机制"
+# 文件桥
+Check "文件同步入口 (#syncBtn)" ($html -match 'id="syncBtn"') "缺少文件同步按钮"
+Check "File System Access API 接入" ($html -match 'showSaveFilePicker' -and $html -match 'showOpenFilePicker') "缺少文件选择能力"
+Check "按 rev 判定谁覆盖谁" ($html -match 'rev\s*<=\s*localRev') "缺少 rev 冲突判定"
+Check "文件内容含 labels/images/status" ($html -match 'labels:labels' -and $html -match 'images:imgs') "导出 payload 不完整"
+
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
 #     且不受 GitHub API 匿名配额（60 次/小时/IP）限制。
