@@ -12,8 +12,8 @@
 | 线上地址 | https://yutuer.github.io/aurora-board/ |
 | 仓库 | https://github.com/yutuer/aurora-board |
 | 本地路径 | `C:\Users\yutue\WorkBuddy\trello看板` |
-| 应用本体 | `index.html`（单文件，约 100 KB） |
-| 数据存储 | 浏览器 localStorage，键 `aurora.board.v1`（看板）+ `aurora.labels.v1`（标签表），**不上传服务器** |
+| 应用本体 | `index.html`（单文件，约 125 KB） |
+| 数据存储 | 浏览器 localStorage，键 `aurora.board.v1`（看板）+ `aurora.labels.v1`（标签表）+ `aurora.rev.v1`（文件修订号）；**图片存 IndexedDB**（`aurora-media` 库，磁盘级配额）。**不上传服务器** |
 | 当前状态 | ✅ 已上线（每次部署由 CI 自动注入构建戳，见页面右上角；校验方式见第四章） |
 
 ---
@@ -36,6 +36,9 @@
 | P10 台账自检 | `verify.ps1` 自动化核对台账与代码一致性 | `4c1ca5c` |
 | P11 浮层遮挡修正 | 提醒中心面板不再压住工具条上的「管理标签」按钮 | `f664475` |
 | P12 长列表布局修正 | 卡片不再被 flex 压扁，列内正确出现滚动条 | `5c276fe` |
+| P13 卡片状态 | 独立的 `status` 字段（待处理/处理中/待复查/已确认）+ 状态筛选栏（复查工作台） | `` |
+| P14 描述图文混排 | 自写 Markdown 子集渲染器（白名单转义）+ 图片存 IndexedDB + 粘贴/拖入/选择插图 | `` |
+| P15 本地文件桥 | 面板 ↔ 本地 `board.json` 双向自动同步（rev 判定），JSON 自包含含图片 | `` |
 
 **验证结论**（2026-10-19 17:45）：
 - `has_pages: true`，`https://yutuer.github.io/aurora-board/` 返回 **200**
@@ -61,6 +64,19 @@
 - 筛选栏顺序**跟随管理面板**（内置色板序 + 自建按创建序），不依赖 localeCompare 的中文 collation
 - 回归：标签筛选、截止日期提醒、弹窗标签选择器均未被改坏
 
+**P13–P15 验证结论**（2026-10-21 01:30）：
+
+| 项 | 验证方式 | 结果 |
+|---|---|---|
+| 状态字段 | 浏览器实点：弹窗切「待复查」→ 高亮 → 卡片长出橙色状态 chip → 刷新后仍在 | ✅ |
+| 状态筛选栏 | 顶栏四档（待处理/处理中/待复查/已确认）+ 统计栏「待复查 N」 | ✅ |
+| 富文本渲染 | 浏览器实点填 `## 标题 / 有序列表 / **粗体** / > 引用 / [链接]` | ✅ 渲染为 `h4 / ol / strong / blockquote / a[rel=noopener]` |
+| XSS 防护 | Node 侧跑渲染器，7 类攻击向量 | ✅ 17/17，**无一产生真实标签**（script / img onerror / iframe / svg onload / style / a href=js / 闭合标签注入） |
+| 图片链路 | agent 内联 base64 → 面板渲染 | ✅ 渲染出 `<img src="data:image/png;base64,…">`，卡片模式下图片自动提到最前 |
+| 数据契约 | Node 侧用真实 agent 风格 board.json 跑全链路 | ✅ 22/23 通过（唯一 1 项是**我的断言写错**，已修正后重测通过） |
+| rev 冲突判定 | Node 侧四种场景 | ✅ 外部 rev 更大→应用 / 相同→不应用 / 更小→不应用 / agent 改完 rev+1→被拉到 |
+| 图片上传 / 文件选择框 | 浏览器自动化 | ⚠️ **未能自动验证** —— 本机内置 Browser 的 `upload_files` 对 `<input type="file">` 报 "Browser action failed in Electron main"，原生文件选择框也无法驱动。**这是工具限制，非功能缺陷**；已改用 Node 侧验证数据契约与降级路径（导出/导入）
+
 ### 📋 后续待办（尚未实现）
 
 | 优先级 | 事项 | 说明 |
@@ -84,6 +100,9 @@
 | **原位放大弹窗** | 从卡片原位置缩放展开 | rect 反算 `translate+scale` 起始帧 |
 | 子任务清单 | 增删改、勾选、进度条实时联动 | 双击改名，删除有淡出动画 |
 | **多颜色标签** | 标签可**新增 / 改名 / 改色 / 删除**，色板不再写死 | 工具条「管理标签」面板 + 弹窗内「＋ 新建」 |
+| **卡片状态** | 独立的 `status` 字段，不与普通标签混用 | 待处理 / 处理中 / 待复查 / 已确认；卡片 chip + 弹窗切换 + 状态筛选栏 |
+| **描述图文混排** | 描述支持 Markdown 子集 + 图片 | 粘贴 / 拖入 / 选择图片；图片存 IndexedDB，导出时内联进 JSON |
+| **本地文件桥** | 面板 ↔ 本地 `board.json` 双向自动同步 | 顶栏「文件同步」按钮；按 `rev` 判定谁覆盖谁 |
 | 搜索 / 筛选 | 全文搜索 + 标签筛选（可多选） | 标题/描述/子任务/评论全文 |
 | **截止日期提醒** | 逾期 / 今天 / 临期三态标记 + 顶栏提醒中心 | 铃铛徽标计数，面板分组列出，点条目跳转定位并开详情 |
 | 暗色 / 亮色主题 | 一键切换 | 选择持久化到 `aurora.pref.v1` |
@@ -119,6 +138,9 @@
 | **官方 Actions，不用第三方 action** | 第三方 Pages action 有供应链风险；官方四步（checkout/configure/upload/deploy）已足够 |
 | **构建戳注入 + 失败校验** | 线上直接显示版本号，一眼分辨"没部署"和"浏览器缓存"；锚点变更时 CI 直接失败，不静默产出 `dev` 戳 |
 | **标签表独立存储，卡片只存 id** | 标签是"可被引用的实体"而非枚举常量。独立存 `aurora.labels.v1` 后，改名 / 改色只改标签表一处，不必遍历改写每张卡片的 `labels` 数组；删除标签时才批量清理引用。id 保持不变 → 改名后卡片引用不断、筛选状态也不丢 |
+| **进度用独立 `status` 字段，不用普通标签** | 给 Agent 的契约必须**无歧义**：普通标签名可被用户改名、可能同名冲突；`status` 是固定枚举（todo/doing/review/done），Agent 写 `status:"review"` 不会有歧义，也不会污染用户的标签体系 |
+| **图片存 IndexedDB，文本存 localStorage** | localStorage 只有 ~5MB 且按 UTF-16 计，base64 图片一张就 100–500KB，很快撑爆。IndexedDB 是磁盘级配额。描述里只留 `![说明](img:ID)` 引用，导出时再把 base64 内联进 JSON → **JSON 依然自包含，Agent 读一个文件就拿到全部信息** |
+| **自写 Markdown 子集，不用第三方库** | 保持零依赖。**安全模型：用户文本先整体 HTML 转义，再在转义后的文本上做结构化替换，所有标签与属性都由解析器生成** → 用户内容无法逃逸成标签，因此落地时用 `innerHTML` 是安全的（**注意：不要改成直接塞用户原文**）。7 类攻击向量（script / img onerror / iframe / svg onload / style / a href=js / 闭合标签注入）已逐一验证，均不产生真实标签 |
 | **纯本地存储，刻意不引入后端** | **主人明确要求「每个人都不同是最好的」（2026-10-20）**。看板数据留在各自浏览器的 localStorage，**不上传、不共享、不做账号系统**。全文零网络请求（无 fetch / XHR / WebSocket），验证方式见下方"零请求"自检。<br>**收益**：零成本、零隐私风险、离线可用；推代码上线不会动到任何人的数据；打开网址看到的是同一个应用、但里面是自己的看板。<br>**代价**：换设备 / 换浏览器 / 清缓存会丢 → **只能靠「导出 JSON」兜底**；也因此**团队协作看板这类需求明确不做**，不要主动提议加后端 |
 
 ---
@@ -159,6 +181,8 @@
 | **外部点击关闭浮层，别把更上层的浮层也算成"外部"** | 删除标签要二次确认，确认框（z 1500）盖在管理面板（z 1350）之上。若外部点击判断只写 `!panel.contains(e.target)`，**点确认框的按钮会把管理面板一起收掉**——用户连删几个标签就得反复重开。**修法：额外排除 `.confirm,.menu,.pop`** |
 | **别用 `localeCompare` 给中文标签排序** | `localeCompare(b,'zh')` 在不同 Chromium / ICU 版本下顺序差异大，实测得到「待评审, 调研, 回归测试, 紧急…」这种完全不符合拼音直觉的结果。**修法：按「管理标签」面板的数组顺序输出**——内置标签保持色板序，自建标签按创建序追加，行为确定可预期 |
 | **浅色阈值别拍脑袋** | 标签文字要按底色亮度切深/浅色。阈值取 150 会把绿/橙/青/粉统统翻成深色字，与卡片上的白字 chip 打架。**取 185**：只影响内置黄色 `#f5c451`（原版就特判过它），其余保持白字，视觉一致 |
+| **文件桥的 `board.json` 必须进项目 `.gitignore`** | 文件桥把工单数据放在**项目目录**里（Agent 要能读到）。而项目目录通常是 git 仓库 → `git add -A` 会把工单数据（还带 base64 图片）一起提交，仓库瞬间膨胀。**接入时第一件事就是给目标项目加 `.gitignore` 条目** |
+| **自动化传文件的限制别当成功能 bug** | 本机内置 Browser 的 `upload_files` 对 `<input type="file">` 报 "Browser action failed in Electron main"，原生文件选择框也无法被驱动。**这不代表功能有问题** —— 改用「降级路径」（导出/导入 JSON）或在 Node 侧直接验证数据契约，**别为了迁就测试工具去改产品代码**。同理，`<input type="file" hidden>` 用 `display:none` 会让它无法被自动化定位，改成视觉隐藏（`.vh`）反而更利于无障碍与测试 |
 
 ### 🐛 浮层遮挡与自动化
 
@@ -198,7 +222,98 @@
 
 ---
 
-## 五、开发与部署
+## 五、Agent 工单流用法（bug 异步流转）
+
+**目的**：把本面板当作 Agent 的**异步工单系统** —— 主人随时发布 bug，Agent 串行处理，主人有空时逐个复查。避免"agent 改一个 bug 就占住对话"的串行等待。
+
+### 角色与状态机
+
+```
+主人发布 ──▶ 待处理 ──▶ 处理中 ──▶ 待复查 ──▶ 已确认
+（建卡片）      │          │          │        （主人复查通过）
+                └──────────┴──────────┘
+                 Agent 领取 → 改代码 → 改状态 → 回写文件
+```
+
+| 维度 | 表达方式 | 说明 |
+|---|---|---|
+| **哪个项目** | 列表名 / 哪个 `board.json` | 一个文件 = 一个项目 |
+| **到哪一步** | `card.status` 字段 | **固定枚举**，不是普通标签 → 给 Agent 无歧义契约 |
+| **是什么类型** | `card.labels` | 普通标签（可自定义名称与颜色） |
+
+**复查工作台**：顶栏「状态」筛选栏点「待复查」→ 跨所有列表筛出待复查的卡片；统计栏也有「待复查 N」。
+
+### 通道：本地 JSON 文件（每个项目一份）
+
+面板数据在浏览器 localStorage 里，Agent 用另一个浏览器 profile **读不到**。所以用**本地文件做桥**：
+
+1. 顶栏点 **「文件同步」**（链条图标）→ 「新建同步文件…」→ **存到该项目目录**，例如
+   `C:\Users\yutue\WorkBuddy\trello看板\board.json`
+   （每个项目一个文件，互不干扰；Agent 在哪个项目干活就读哪个文件）
+2. 连接后**双向自动同步**：
+   - 面板任何改动 → 800ms 防抖 → 写文件（`rev` 自增）
+   - 每 4 秒 + 窗口聚焦 → 读文件；**只有 `rev` 更大的一方才会覆盖另一方**
+3. 不支持 File System Access API 的浏览器（Safari/Firefox）→ 用顶栏「导出 / 导入 JSON」手动同步（同一份格式）
+
+> ⚠️ **接入项目务必把 `board.json` 加进那个项目的 `.gitignore`** —— 否则 `git add -A` 会把工单数据（还带 base64 图片）一起提交，仓库瞬间膨胀。
+
+### 文件格式（Agent 直接读写这个 JSON）
+
+```json
+{
+  "app": "aurora-board", "version": 1, "rev": 12,
+  "updatedAt": "2026-10-21T01:20:00.000Z",
+  "title": "Aurora Board",
+  "lists": [{
+    "id": "l_x", "title": "todo-app 项目", "color": "#ff6a3d",
+    "cards": [{
+      "id": "c_x", "title": "搜索无结果时白屏", "status": "review",
+      "desc": "## 现象\n\n搜索无匹配时页面直接白屏。\n\n![截图](img:img_1)",
+      "labels": ["lb_new"], "due": "", "subtasks": [], "comments": []
+    }]
+  }],
+  "labels": [{ "id": "lb_new", "name": "回归", "color": "#ff5c5c" }],
+  "images": { "img_1": "data:image/jpeg;base64,..." }
+}
+```
+
+| 字段 | 含义 |
+|---|---|
+| `rev` | **单调递增修订号**。Agent 改完自增；面板据此判断"要不要覆盖我的界面"（`文件.rev > 本地.rev` 才应用） |
+| `desc` | Markdown 子集源码；图片用 `![说明](img:图片ID)` 引用，base64 实体放 `images` 里 |
+| `images` | Agent 写截图时把 base64 放这里；面板导入时拆进 IndexedDB，导出时再内联回去 |
+| `labels` | 标签表（名称 + 颜色）。改标签名/色只改这里，**不动卡片** |
+| `status` | `todo` / `doing` / `review` / `done` |
+| **兼容性** | 旧格式（无 `status` / `labels` / `images`）照样能导入，缺字段自动补默认值 |
+
+### Agent 侧操作约定
+
+```powershell
+# 1) 取待处理的 bug（含描述与截图）
+$j = Get-Content board.json -Raw | ConvertFrom-Json
+$j.lists | ForEach-Object { $_.cards } |
+  Where-Object { $_.status -in 'todo','doing' } |
+  ForEach-Object { "【$($_.title)】$($_.desc)" }
+# 截图：$j.images 里的 base64 → 写成 png 文件再读
+
+# 2) 改完代码 → 标记为待复查 → 回写
+$j.lists[0].cards[0].status = 'review'
+$j.rev = $j.rev + 1
+$j.updatedAt = (Get-Date).ToUniversalTime().ToString('o')
+$j | ConvertTo-Json -Depth 10 | Set-Content board.json -Encoding UTF8
+```
+
+面板在 4 秒内自动拉到（`rev` 更大即应用），并提示「已同步外部更新」。
+
+### 描述里的图片从哪来
+
+- **主人贴图**：在描述框里**直接粘贴 / 拖入 / 点「图片」按钮** → 面板压缩后存 IndexedDB
+- **Agent 写图**：把 base64 放进 JSON 的 `images`，描述里写 `![说明](img:ID)` → 面板渲染成图
+- 两种来源在面板里**渲染完全一致**，互不干扰
+
+---
+
+## 六、开发与部署
 
 ### 日常更新
 
@@ -236,7 +351,7 @@ git push          # 自动触发 CI 部署
 
 ---
 
-## 六、文件结构
+## 七、文件结构
 
 ```
 aurora-board/
@@ -266,7 +381,7 @@ powershell -ExecutionPolicy Bypass -File ./verify.ps1
 
 ---
 
-## 七、浏览器支持
+## 八、浏览器支持
 
 现代浏览器（Chrome / Edge / Safari / Firefox 近两年版本）。依赖 Pointer Events、CSS 自定义属性、`inset` 简写，以及原生 `<input type="color">` 取色器（标签改色）。
 
