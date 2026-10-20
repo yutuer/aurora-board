@@ -106,6 +106,10 @@ foreach ($kv in @(
 )) {
   Check "$($kv[1]) 存在" ($html -match [regex]::Escape($kv[0])) "未找到 $($kv[0])"
 }
+# 长列表必须能滚动：卡片不能在纵向 flex 容器里被压扁（.card 带 overflow:hidden，
+# 自动最小尺寸会归零，flex-shrink 默认值就能把它压成任意扁，滚动条永不出现）
+Check "卡片不参与伸缩 .list-body > .card{flex:none}" ($html -match '\.list-body\s*>\s*\.card\s*\{\s*flex\s*:\s*none') "缺少该规则，长列表会塌陷且没有滚动条"
+Check "列内内容区可滚动 .list-body{...overflow-y:auto}" ($html -match '\.list-body\{[^}]*overflow-y\s*:\s*auto') "缺少 overflow-y:auto"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
