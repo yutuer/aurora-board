@@ -2590,6 +2590,22 @@ function openTagMgr(){
   tagMgr.style.top=top+'px';
 }
 function closeTagMgr(){ tagMgr.classList.remove('show'); }
+/** 重命名当前项目（只改显示名，不动工单文件路径） */
+function renameProject(){
+  const p=curProject();
+  if(!p){ toast('请先切换到具体项目'); return; }
+  const v=window.prompt('项目显示名',p.name);
+  if(!v) return;
+  const nm=String(v).trim();
+  if(!nm){ toast('名称不能为空'); return; }
+  p.name=nm;
+  p.data.title=nm;      // 文件模式下把标题也写回，下次扫描仍是这个名字
+  p.data.rev=(p.data.rev||0);
+  save();               // 写盘（目录模式写项目文件，文件模式写该文件）
+  renderProjSwitch();
+  refreshCurrentView();
+  toast('项目已重命名为「'+nm+'」');
+}
 $('#tagMgrBtn').addEventListener('click',()=>{
   if(projects.length&&curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目再管理标签'); return; }
   if(tagMgr.classList.contains('show')) closeTagMgr(); else openTagMgr();
@@ -2768,8 +2784,23 @@ function colorForName(s){
   return TAG_PALETTE[h%TAG_PALETTE.length];
 }
 function projLabelId(p){ return 'proj_'+p.key; }
-function makeProject(key,fileHandle,data,dirH){
-  return {key:key,name:key,color:colorForName(key),fileHandle:fileHandle,dirHandle:dirH||null,
+/* 项目显示名：
+   目录模式 → 子目录名（天然正确，agent 也靠它定位）
+   文件模式 → 拿不到父目录名（FileSystemFileHandle 没有 parent）→ 退回工单标题，再退回文件名
+   重名自动加后缀，避免多个 board.json 全叫 "board" */
+function pickProjectName(base,used){
+  let name=String(base||'').trim()||'未命名项目';
+  if(!used[name]) return name;
+  let i=2;
+  while(used[name+' ('+i+')']) i++;
+  return name+' ('+i+')';
+}
+/* 项目对象：
+   key  = 路径标识（目录模式下=子目录名，agent 的 take.ps1 靠它定位，不能随便改）
+   name = 显示名（取工单标题；用户重命名时写回 title，所以能持久） */
+function makeProject(key,defName,fileHandle,data,dirH){
+  const t=(data&&data.title&&data.title!=='Aurora Board')?String(data.title):defName;
+  return {key:key,name:t,color:colorForName(key),fileHandle:fileHandle,dirHandle:dirH||null,
           data:data,rev:Number(data&&data.rev)||0};
 }
 function countReview(p){
@@ -2949,8 +2980,13 @@ function renderFileStatus(){
   const tip=$('#syncTip');
   if(!tip) return;
   if(fileSyncOn&&projects.length){
-    tip.textContent='⇄ '+(dirHandle?dirHandle.name:projects.length+' 个项目');
-    tip.title='正在与本地工单文件双向同步：'+projects.map(p=>p.name).join('、')+'\n'+SYNC_HINT;
+    const n=projects.length;
+    tip.textContent='⇄ '+(dirHandle?dirHandle.name:n+' 个文件');
+    tip.title=dirHandle
+      ? ('工单根目录：'+dirHandle.name+'\n项目：'+projects.map(p=>p.name).join('、')
+         +'\n\nAgent 取件（在其项目目录里执行）：\npowershell -ExecutionPolicy Bypass -File "'+boardsRoot()+'\\take.ps1"')
+      : ('⚠️ 文件模式：只保证面板侧同步。\nAgent 的取件脚本按「工单根目录\\<项目名>\\board.json」定位，'
+         +'这里的文件它找不到。\n要跑通 agent 工单流，请改用「选择工单根目录」或「新建工单项目」。');
   }else if(pendingDir||pendingHandle){
     tip.textContent='⇄ 待授权';
     tip.title='点「文件同步」重新授权';
@@ -2974,7 +3010,7 @@ async function scanProjects(){
           if(!f.size) continue;
           const d=JSON.parse(await f.text());
           if(!d||!Array.isArray(d.lists)) continue;
-          ps.push(makeProject(name,fh,d,handle));
+          ps.push(makeProject(name,name,fh,d,handle));
         }catch(e){}
       }
     }catch(e){}
@@ -2985,10 +3021,14 @@ async function scanProjects(){
         if(!f.size) continue;
         const d=JSON.parse(await f.text());
         if(!d||!Array.isArray(d.lists)) continue;
-        ps.push(makeProject(fh.name.replace(/\.json$/i,''),fh,d,null));
+        const def=fh.name.replace(/\.json$/i,'');
+        ps.push(makeProject(def,def,fh,d,null));
       }catch(e){}
     }
   }
+  // 显示名去重：多个 board.json 同名时加后缀，避免切换器里全是 "board"
+  const used={};
+  ps.forEach(p=>{ p.name=pickProjectName(p.name,used); used[p.name]=1; });
   projects=ps;
   if(curKey!=='__all__'&&!projects.some(p=>p.key===curKey)) curKey='__all__';
   refreshCurrentView();
@@ -3173,13 +3213,14 @@ $('#syncBtn').addEventListener('click',e=>{
   const list=[
     {label:'选择工单根目录…',icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>pickDirectory()},
     {label:'新建工单项目…（选项目代码目录）',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createProjectDir()},
-    {label:'选择工单文件（可多选）…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickFiles()},
+    {label:'选择工单文件（可多选）· 仅面板同步',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickFiles()},
     {label:'新建工单文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()},
     {label:'工单根目录路径：'+boardsRoot(),icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>{ askBoardsRoot(); toast('已更新工单根目录路径'); }},
     {label:'刷新项目列表',icon:()=>svg(['M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6','M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6','M21 3v6h-6','M3 21v-6h6']),onClick:()=>{ scanProjects(); toast('已刷新项目列表'); }}
   ];
   const cp=curProject();
-  if(cp) list.push('-',{label:'恢复「'+cp.name+'」上一版',icon:()=>svg(['M3 12a9 9 0 1 0 3-6.7L3 8','M3 3v5h5']),onClick:()=>restoreBackup(cp)});
+  if(cp) list.push('-',{label:'重命名当前项目（'+cp.name+'）',icon:()=>svg(['M12 20h9','M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z']),onClick:()=>renameProject()});
+  if(cp) list.push({label:'恢复「'+cp.name+'」上一版',icon:()=>svg(['M3 12a9 9 0 1 0 3-6.7L3 8','M3 3v5h5']),onClick:()=>restoreBackup(cp)});
   if(pendingDir||pendingHandle){
     list.push({label:'重新授权连接',icon:()=>svg(['M12 3l2.2 1.6 2.6-.3 1 2.4 2.2 1.4-.7 2.5 1 2.4-1.9 1.8.2 2.6-2.5.6-1.6 2.1-2.3-1.1-2.3 1.1-1.6-2.1-2.5-.6.2-2.6-1.9-1.8 1-2.4-.7-2.5L5 7.1l1-2.4 2.6.3z','M9 12l2 2 4-4']),onClick:async()=>{
       try{

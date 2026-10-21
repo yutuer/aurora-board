@@ -147,6 +147,11 @@ Check "take.ps1 自带 UTF-8 BOM（PS 5.1 硬要求）" ($html -match "TAKE_PS1=
 Check "取件脚本会标记 doing 防重复领取" ($html -match '\$c\.status\s*=\s*"doing"') "取件未标记 doing，会重复领取同一张卡"
 Check "项目目录写 .board-path 指针" ($html -match "getFileHandle\('\.board-path'") "缺少 .board-path 指针"
 Check "目录名失配时列出可用项目" ($html -match '工单根目录下的项目') "失配时无提示，agent 会瞎猜"
+# 项目取名：文件模式拿不到父目录名（FileSystemFileHandle 没有 parent），
+# 必须用工单 title 兜底 + 重名去重，否则多个 board.json 全叫 "board"
+Check "项目名重名去重" ($html -match 'function pickProjectName' -and $html -match 'used\[name\+' ) "缺少重名去重，多个 board.json 会同名"
+Check "项目名优先取工单 title" ($html -match "data\.title&&data\.title!=='Aurora Board'") "项目名未取 title，文件模式会显示成 board"
+Check "可重命名项目（写回 title 持久化）" ($html -match 'function renameProject' -and $html -match 'p\.data\.title=nm') "缺少重命名入口"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
