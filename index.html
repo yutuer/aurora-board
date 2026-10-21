@@ -3016,6 +3016,31 @@ async function createSyncFile(){
     await connectFiles([h]);
   }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
 }
+/** 新建一个工单项目：选一个子目录 → 自动写入初始 board.json → 父目录自动认做工单根目录 */
+async function createProjectDir(){
+  if(!window.showDirectoryPicker){ toast('当前浏览器不支持目录选择，请用「新建工单文件…」'); return; }
+  try{
+    const d=await window.showDirectoryPicker({mode:'readwrite'});
+    const seed={
+      title:d.name,
+      lists:[{id:uid('l'),title:'待处理',color:'#7d879c',cards:[]}],
+      labels:loadStandaloneLabels(),
+      images:{}
+    };
+    const fh=await d.getFileHandle('board.json',{create:true});
+    const w=await fh.createWritable();
+    await w.write(JSON.stringify(Object.assign({},seed,{app:'aurora-board',version:1,rev:1,updatedAt:new Date().toISOString()}),null,2));
+    await w.close();
+    const parent=d.parent;
+    if(parent){
+      try{ await parent.requestPermission({mode:'readwrite'}); }catch(e){}
+      await connectDirectory(parent);
+    }else{
+      await connectFiles([fh]);
+    }
+    toast('已创建工单项目「'+d.name+'」');
+  }catch(e){ if(e&&e.name!=='AbortError') toast('创建失败：'+((e&&e.message)||'未知错误')); }
+}
 async function restoreFileHandle(){
   try{
     const d=await metaGet(DIR_HANDLE_KEY);
@@ -3044,6 +3069,7 @@ $('#syncBtn').addEventListener('click',e=>{
   const b=e.currentTarget;
   const list=[
     {label:'选择工单根目录…',icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>pickDirectory()},
+    {label:'新建工单项目…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createProjectDir()},
     {label:'选择工单文件（可多选）…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickFiles()},
     {label:'新建工单文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()},
     {label:'刷新项目列表',icon:()=>svg(['M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6','M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6','M21 3v6h-6','M3 21v-6h6']),onClick:()=>{ scanProjects(); toast('已刷新项目列表'); }}

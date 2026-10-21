@@ -141,6 +141,7 @@ Check "上一版回滚备份" ($html -match 'function backupProject' -and $html 
 Check "聚合视图只读保护" ($html -match '只读汇总视图') "聚合视图未做只读保护"
 Check "聚合视图点卡片自动切项目" ($html -match "card\.dataset\.proj" -and $html -match 'switchTo\(pj\)') "汇总视图点卡片未跳转到所属项目"
 Check "汇总视图不渲染状态 chip" ($html -match "st!=='todo'&&!card\.__proj") "汇总视图重复显示状态 chip"
+Check "一键新建工单项目（写初始 board.json + 父目录作根）" ($html -match 'function createProjectDir' -and $html -match "getFileHandle\('board\.json',\{create:true\}\)" -and $html -match 'd\.parent') "缺少新建工单项目入口"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
