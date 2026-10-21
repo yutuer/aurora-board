@@ -188,6 +188,7 @@
 | **自动化传文件的限制别当成功能 bug** | 本机内置 Browser 的 `upload_files` 对 `<input type="file">` 报 "Browser action failed in Electron main"，原生文件选择框也无法被驱动。**这不代表功能有问题** —— 改用「降级路径」（导出/导入 JSON）或在 Node 侧直接验证数据契约，**别为了迁就测试工具去改产品代码**。同理，`<input type="file" hidden>` 用 `display:none` 会让它无法被自动化定位，改成视觉隐藏（`.vh`）反而更利于无障碍与测试 |
 | **`node --check` 查不出未定义变量** | 重构成多项目时把 `buildList(list)` 的参数名写成 `l.id` → 页面直接白屏、控制台 `ReferenceError: l is not defined`。**语法检查全绿**（`node --check` 只管语法，不管变量是否存在）。**规矩：改完必须真在浏览器里打开看有没有红字**，别拿"语法通过"当"功能正常" |
 | **CSS 的 `display:none` 会盖住 inline 的 `style.display=''`** | 项目切换器 CSS 里写了 `display:none`（无项目时隐藏），JS 里 `style.display=''` 想显示 → **结果还是隐藏**。因为 `''` 等于"不设置"，CSS 的 `display:none` 依然生效。**修法**：CSS 默认给 `display:flex`，JS 显式切 `'flex'` / `'none'` |
+| **`.ps1` 的 BOM 坑踩了两次** | PowerShell 5.1 把**无 BOM** 的 `.ps1` 按系统 ANSI 解码 → 中文变乱码 → **脚本直接解析失败**（报「意外的标记」，看不出是编码问题）。第一次踩在 `verify.ps1`，第二次踩在新建的 `take.ps1`。**两个要点**：① File System Access API 写字符串**默认不加 BOM** → `take.ps1` 首行必须自带 `\uFEFF`；② 测试时别重复加 BOM（写文件再带 BOM + 字符串里已有 U+FEFF = 两个 BOM，PS 只剥一个，另一个变成非法命令）。**教训：同一个坑要同时写进台账 + 自检断言**，不然第三次还会踩 |
 
 ### 🐛 浮层遮挡与自动化
 
@@ -284,6 +285,39 @@ C:\Users\yutue\boards\          ← 工单根目录（不进版本管理）
 - 代价：Agent 需要知道约定路径 → 固定为 `boards\<项目名>\board.json`，在项目里放一个 `.board-path` 指针文件即可
 
 **安全网**：工单目录没有 git 历史，误删就没了。所以面板**每次写入前会把上一版存进 IndexedDB**，顶栏「文件同步」菜单里有「恢复『某项目』上一版」可一键回滚。
+
+### Agent 怎么取件（面板自动生成，不用自己写）
+
+面板在**工单根目录**放一个 `take.ps1`（统一取件脚本），并在**每个项目代码目录**放一个 `.board-path` 指针文件：
+
+```
+C:\Users\yutue\boards\take.ps1                    ← 取件脚本（自动按当前目录名定位项目）
+C:\Users\yutue\boards\wangqueqianye\board.json     ← 工单数据
+E:\...\wangqueqianye\.board-path                   ← 指针：agent 一进项目就看到工单在哪
+```
+
+**agent 的取件动作**（在项目目录里）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1"
+```
+
+脚本行为：
+- 项目名默认取**当前工作目录名** → 所以**项目代码目录名必须和工单子目录名一致**（面板「新建工单项目」时自动保持一致）
+- 打印第一条 `status=todo` 的卡片详情，**并把它标成 `doing`**（避免下次重复领取）
+- 写回时 `rev` 自增（面板据此同步）
+- 目录名对不上时，**列出工单根目录下所有项目及各自待处理数**，让 agent 明确指定 `-Project xxx`，而不是猜
+- `-List` 只列不领；`-Project xxx` 显式指定项目
+
+**发完 bug 之后，agent 怎么知道有活干？** —— 纯前端架构**没有推送**，agent 必须"被叫醒"后主动取件：
+
+| 触发方式 | 说明 |
+|---|---|
+| 你在对话里说一声 | 「看下 wangqueqianye 的工单」 |
+| 某个对话的任务做完顺手拉一次 | 最省事的那种 |
+| agent 自己看到 `.board-path` 就去查 | 进了项目目录自动知道有工单流 |
+
+**⚠️ 硬边界**：网页发新 bug **不会自动唤醒 agent** —— 面板是浏览器里的页面，agent 是终端里的进程，两者之间要通信就得有中间人（后端 / 常驻 watcher / 云端定时任务），而本项目明确选了「不加后端、纯本地」。**所以这条链路必然是"你推一下"或"agent 顺手查一下"。**
 
 ### 文件格式（Agent 直接读写这个 JSON）
 
