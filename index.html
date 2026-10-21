@@ -188,6 +188,15 @@ html[data-theme="light"] .brand h1{background:linear-gradient(100deg,#1b2130 10%
 .fc .dot{width:8px;height:8px;border-radius:50%;flex:none}
 .fc.on .dot{background:rgba(255,255,255,.85)!important}
 .filter-label{font-size:11px;color:var(--text-3);letter-spacing:1.4px;text-transform:uppercase;margin-right:2px}
+/* 项目切换器（多项目工单流） */
+.proj-switch{display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex:1;min-width:0}
+.pc{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:999px;
+  font-size:12px;font-weight:600;border:1px solid var(--stroke);background:var(--panel);
+  color:var(--text-2);transition:.16s var(--ease);white-space:nowrap;
+}
+.pc:hover{border-color:var(--stroke-2);color:var(--text)}
+.pc.on{color:#fff;border-color:transparent;background:linear-gradient(135deg,var(--orange),var(--red));box-shadow:0 4px 12px -4px rgba(0,0,0,.5)}
 
 /* ============================================================
    2. 看板区
@@ -716,6 +725,7 @@ body.dragging .card:not(.ghost):hover{transform:none}
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
+      <div class="proj-switch" id="projSwitch"></div>
       <div class="filter-chips" id="statusChips"><span class="filter-label">状态</span></div>
       <div class="filter-chips" id="filterChips"><span class="filter-label">标签</span></div>
       <button class="icon-btn" id="tagMgrBtn" title="管理标签（新增 / 改名 / 改色 / 删除）">
@@ -1022,20 +1032,31 @@ function loadLabels(){
       return;
     }
   }catch(e){}
-  labels=BUILTIN_LABELS.map(x=>({id:x.id,name:x.name,color:x.color}));
+  labels=loadStandaloneLabels();
   saveLabels();
 }
 function saveLabels(){
+  if(projects.length) return;   // 工单模式下标签随项目文件走，不落 localStorage
   try{ localStorage.setItem(LABELS_STORE,JSON.stringify(labels)); }catch(e){}
+}
+/** 独立模式（未连工单文件）的标签表 */
+function loadStandaloneLabels(){
+  try{
+    const raw=localStorage.getItem(LABELS_STORE);
+    const d=raw?JSON.parse(raw):null;
+    if(Array.isArray(d)&&d.length) return d;
+  }catch(e){}
+  return BUILTIN_LABELS.map(x=>({id:x.id,name:x.name,color:x.color}));
 }
 function labelDef(id){ return labels.find(l=>l.id===id)||null; }
 function labelName(id){ const d=labelDef(id); return d?d.name:id; }
 function labelColor(id,fb){ const d=labelDef(id); return d?d.color:(fb||'#7d879c'); }
 function labelExists(id){ return !!labelDef(id); }
 /* 清掉指向已删除标签的悬空引用（标签被删后卡片不应再挂着无效 id） */
-function pruneDanglingLabels(){
-  if(!board||!board.lists) return;
-  board.lists.forEach(l=>l.cards.forEach(c=>{
+function pruneDanglingLabels(b){
+  const t=b||board;
+  if(!t||!t.lists) return;
+  t.lists.forEach(l=>l.cards.forEach(c=>{
     if(c.labels&&c.labels.length){
       const keep=c.labels.filter(k=>labelExists(k));
       if(keep.length!==c.labels.length) c.labels=keep;
@@ -1052,23 +1073,41 @@ function isLight(hex){
 }
 loadLabels();
 
-let board;
+/* 独立模式（未连接工单文件）的单看板；工单模式下由 projects 接管 */
+let standalone=null;
+/* 工单模式：已加载的所有项目，每个项目一份 board.json */
+let projects=[];          // [{key,name,color,dirHandle,fileHandle,data,rev}]
+let curKey='__all__';     // 当前项目 key；'__all__' = 全部项目聚合视图
+let aggBoard=null;        // 聚合视图的临时看板（只读）
+let board=null;           // 当前显示的看板 = 聚合视图 或 当前项目
+
 try{
   const raw=localStorage.getItem(STORE);
   const d=raw?JSON.parse(raw):null;
-  board = (d&&Array.isArray(d.lists)&&d.lists.length)? d : seed();
-}catch(e){ board=seed(); }
-if(!board.title) board.title='Aurora Board';
-pruneDanglingLabels();
-/* 旧数据没有 status 字段 → 补默认「待处理」，避免状态筛选把老卡片滤掉 */
-board.lists.forEach(l=>l.cards.forEach(c=>{
-  if(!STATUSES[c.status]) c.status='todo';
-}));
+  standalone=(d&&Array.isArray(d.lists)&&d.lists.length)? d : seed();
+}catch(e){ standalone=seed(); }
+if(!standalone.title) standalone.title='Aurora Board';
+board=standalone;
+pruneDanglingLabels(standalone);
+normalizeStatus(standalone);
 
+/* 旧数据没有 status 字段 → 补默认「待处理」，避免状态筛选把老卡片滤掉 */
+function normalizeStatus(b){
+  if(!b||!b.lists) return;
+  b.lists.forEach(l=>l.cards.forEach(c=>{ if(!STATUSES[c.status]) c.status='todo'; }));
+}
+function curProject(){
+  if(curKey==='__all__') return null;
+  return projects.find(p=>p.key===curKey)||null;
+}
 function save(){
-  try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
+  if(projects.length){
+    // 工单模式：写回当前项目文件；聚合视图只读，不写任何地方
+    if(!suppressFileWrite){ const p=curProject(); if(p) scheduleFileWrite(p); }
+  }else{
+    try{ localStorage.setItem(STORE,JSON.stringify(board)); }catch(e){}
+  }
   renderRemind();
-  if(!suppressFileWrite) scheduleFileWrite();
 }
 function savePref(){
   try{ localStorage.setItem(PREF,JSON.stringify({theme:document.documentElement.dataset.theme})); }catch(e){}
@@ -1105,12 +1144,13 @@ function applyDueState(node,card){
 function buildCard(card){
   const node=el('article','card');
   node.dataset.id=card.id;
+  if(card.__proj) node.dataset.proj=card.__proj;   // 聚合视图：记住所属项目
   node.appendChild(el('i','card-fx'));
 
   const st=statusOf(card);
-  if((card.labels&&card.labels.length)||st!=='todo'){
+  if((card.labels&&card.labels.length)||(st!=='todo'&&!card.__proj)){
     const box=el('div','card-labels');
-    if(st!=='todo'){
+    if(st!=='todo'&&!card.__proj){        // 汇总视图里列名已表达状态，不再重复状态 chip
       const sc=el('span','st-chip',STATUSES[st].name);
       sc.style.color=STATUSES[st].color;
       box.appendChild(sc);
@@ -1200,10 +1240,12 @@ function buildList(list){
   list.cards.forEach(c=>body.appendChild(buildCard(c)));
 
   const foot=el('div','list-foot');
-  const add=el('button','add-card');
-  add.appendChild(svg(['M12 5v14M5 12h14'],{sw:'2.4'}));
-  add.appendChild(el('span',null,'添加卡片'));
-  foot.appendChild(add);
+  if(String(list.id).indexOf('agg_')!==0){        // 汇总视图只读，不渲染「添加卡片」
+    const add=el('button','add-card');
+    add.appendChild(svg(['M12 5v14M5 12h14'],{sw:'2.4'}));
+    add.appendChild(el('span',null,'添加卡片'));
+    foot.appendChild(add);
+  }
 
   node.append(head,bar,body,foot);
   node._body=body; node._count=count; node._bar=bi; node._dot=dot; node._title=title;
@@ -1441,15 +1483,16 @@ async function storeImage(file){
   imgCache.set(id,data);
   return id;
 }
-/* 被描述引用的图片 id */
-function collectImageIds(){
+/* 被描述引用的图片 id（b 缺省为当前看板） */
+function collectImageIds(b){
+  const src=b||board;
   const ids=new Set();
   const re=/!\[[^\]]*\]\(img:([A-Za-z0-9_-]+)\)/g;
-  allCards().forEach(c=>{
+  ((src&&src.lists)||[]).forEach(l=>(l.cards||[]).forEach(c=>{
     const s=c.desc||'';
     let m;
     while((m=re.exec(s))) ids.add(m[1]);
-  });
+  }));
   return Array.from(ids);
 }
 async function gcImages(){
@@ -1884,6 +1927,7 @@ wrapEl.addEventListener('pointerdown',onDown);
 
 function onDown(e){
   if(e.button!==0) return;
+  if(curKey==='__all__') return;          // 「全部项目」是只读汇总视图，不参与拖拽
   if(e.target.closest('button')||e.target.closest('.icon-btn')) return;
   if(e.target.closest('[contenteditable="true"]')) return;
   const card=e.target.closest('.card');
@@ -2089,13 +2133,30 @@ function syncFromDom(){
 boardEl.addEventListener('click',e=>{
   if(suppressClick){ suppressClick=false; return; }
   const menuBtn=e.target.closest('.list-header .icon-btn');
-  if(menuBtn){ listMenu(menuBtn,menuBtn.closest('.list').dataset.id); return; }
+  if(menuBtn){
+    if(curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目'); return; }
+    listMenu(menuBtn,menuBtn.closest('.list').dataset.id); return;
+  }
   const addBtn=e.target.closest('.add-card');
-  if(addBtn){ addCard(addBtn.closest('.list').dataset.id); return; }
+  if(addBtn){
+    if(curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目'); return; }
+    addCard(addBtn.closest('.list').dataset.id); return;
+  }
   const titleEl=e.target.closest('.list-title');
-  if(titleEl){ editListTitle(titleEl); return; }
+  if(titleEl){
+    if(curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目'); return; }
+    editListTitle(titleEl); return;
+  }
   const card=e.target.closest('.card');
   if(card&&!e.target.closest('[contenteditable="true"]')){
+    // 汇总视图：先切到卡片所属项目，再打开详情（汇总本身是只读的）
+    const pj=card.dataset.proj;
+    if(pj&&curKey==='__all__'){
+      switchTo(pj);
+      const again=boardEl.querySelector('.card[data-id="'+card.dataset.id+'"]');
+      openModal(again||card);
+      return;
+    }
     openModal(card);
   }
 });
@@ -2530,6 +2591,7 @@ function openTagMgr(){
 }
 function closeTagMgr(){ tagMgr.classList.remove('show'); }
 $('#tagMgrBtn').addEventListener('click',()=>{
+  if(projects.length&&curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目再管理标签'); return; }
   if(tagMgr.classList.contains('show')) closeTagMgr(); else openTagMgr();
 });
 document.addEventListener('pointerdown',e=>{
@@ -2665,39 +2727,132 @@ $('#mDesc').addEventListener('drop',e=>{
 });
 /* ============================================================
    本地文件桥（agent 工单流的通道）
-   面板 ↔ 本地 board.json 双向自动同步：面板改动自动写盘，外部（agent）改动自动读入。
-   判据是修订号 rev：只有 rev 更大的一方才会覆盖另一方，避免互相踩。
+   两种接入：
+   ① 工单根目录（推荐）：showDirectoryPicker 选一个根目录，其下每个子目录
+      视为一个项目、子目录里的 board.json 即该项目的工单文件。
+      一次授权即可看到全部项目，并提供「全部项目」聚合视图（按状态分列）。
+   ② 多文件：showOpenFilePicker 可多选，跨目录跨盘都行。
+   双向同步判据是修订号 rev：只有 rev 更大的一方才会覆盖另一方，避免互相踩。
    ============================================================ */
 const FILE_REV_KEY='aurora.rev.v1';
 const FILE_HANDLE_KEY='fileHandle';
-/** agent 读这个文件 → 建议用户把同步文件保存在这里 */
-const SYNC_HINT='建议保存到 C:\\Users\\yutue\\WorkBuddy\\trello看板\\board.json';
-let fileHandle=null, fileSyncOn=false, pendingHandle=null;
+const DIR_HANDLE_KEY='dirHandle';
+/** agent 读工单文件的固定约定：根目录\<项目名>\board.json */
+const BOARDS_ROOT='C:\\Users\\yutue\\boards';
+const SYNC_HINT='工单文件约定：'+BOARDS_ROOT+'\\<项目名>\\board.json';
+let dirHandle=null;              // 目录模式
+let fileHandles=[];              // 文件模式（可多选）
+let fileSyncOn=false, pendingHandle=null, pendingDir=null;
 let fileWriteTimer=null, localRev=0, suppressFileWrite=false;
 
 try{ localRev=Number(localStorage.getItem(FILE_REV_KEY))||0; }catch(e){}
 function persistRev(){ try{ localStorage.setItem(FILE_REV_KEY,String(localRev)); }catch(e){} }
 
+/* ---------------- 项目对象 ---------------- */
+function colorForName(s){
+  let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
+  return TAG_PALETTE[h%TAG_PALETTE.length];
+}
+function projLabelId(p){ return 'proj_'+p.key; }
+function makeProject(key,fileHandle,data,dirH){
+  return {key:key,name:key,color:colorForName(key),fileHandle:fileHandle,dirHandle:dirH||null,
+          data:data,rev:Number(data&&data.rev)||0};
+}
+function countReview(p){
+  let n=0;
+  ((p.data&&p.data.lists)||[]).forEach(l=>l.cards.forEach(c=>{ if(statusOf(c)==='review') n++; }));
+  return n;
+}
+/* 聚合视图：所有项目的卡片按状态分四列，卡片带项目标签区分来源 */
+function buildAggregate(){
+  const lists=STATUS_KEYS.map(k=>({id:'agg_'+k,title:STATUSES[k].name,color:STATUSES[k].color,cards:[]}));
+  const aggLabels=[],seen={};
+  projects.forEach(p=>{
+    ((p.data&&p.data.lists)||[]).forEach(l=>(l.cards||[]).forEach(c=>{
+      const t=lists.find(x=>x.id==='agg_'+statusOf(c));
+      if(!t) return;
+      const cc=Object.assign({},c);
+      cc.labels=(c.labels||[]).concat([projLabelId(p)]);
+      cc.__proj=p.key;          // 供编辑操作定位卡片所属项目
+      t.cards.push(cc);
+    }));
+    ((p.data&&p.data.labels)||[]).forEach(l=>{
+      if(!seen['L'+l.id]){ seen['L'+l.id]=1; aggLabels.push(Object.assign({},l)); }
+    });
+  });
+  projects.forEach(p=>aggLabels.push({id:projLabelId(p),name:p.name,color:p.color}));
+  return {title:'全部项目',lists:lists,labels:aggLabels,images:{},rev:0};
+}
+/* 切换当前视图：key = 项目 key 或 '__all__' */
+function switchTo(key){
+  if(key===curKey) return;
+  curKey=key;
+  if(key==='__all__'){
+    aggBoard=buildAggregate();
+    board=aggBoard;
+    labels=aggBoard.labels;
+  }else{
+    const p=projects.find(x=>x.key===key);
+    if(!p) return;
+    board=p.data;
+    labels=p.data.labels||(p.data.labels=[]);
+  }
+  renderAll();
+  renderProjSwitch();
+}
+/** 外部数据变化后刷新当前视图 */
+function refreshCurrentView(){
+  if(curKey==='__all__'){
+    aggBoard=buildAggregate();
+    board=aggBoard;
+    labels=aggBoard.labels;
+  }else{
+    const p=curProject();
+    if(p){ board=p.data; labels=p.data.labels||(p.data.labels=[]); }
+  }
+  renderAll();
+  renderProjSwitch();
+}
+/** 顶栏项目切换器：全部项目 + 各项目（带待复查数） */
+function renderProjSwitch(){
+  const box=$('#projSwitch');
+  if(!box) return;
+  box.innerHTML='';
+  if(!projects.length){ box.style.display='none'; return; }
+  box.style.display='flex';
+  const all=el('button','pc'+(curKey==='__all__'?' on':''),'全部项目');
+  all.title='所有项目的汇总（只读），按状态分列';
+  all.addEventListener('click',()=>switchTo('__all__'));
+  box.appendChild(all);
+  projects.forEach(p=>{
+    const n=countReview(p);
+    const b=el('button','pc'+(curKey===p.key?' on':''),p.name+(n?' · '+n:''));
+    b.title=p.name+'（待复查 '+n+'）';
+    b.addEventListener('click',()=>switchTo(p.key));
+    box.appendChild(b);
+  });
+}
 /** 构造完整数据（看板 + 标签 + 内联图片），供导出与写盘共用 */
-async function buildPayload(){
+async function buildPayload(b){
+  const src=b||board;
   const imgs={};
-  for(const id of collectImageIds()){
+  for(const id of collectImageIds(src)){
     let d=imgCache.get(id);
     if(!d){ try{ const rec=await idbGet(id); d=rec&&rec.data; }catch(e){} }
     if(d) imgs[id]=d;
   }
-  return Object.assign({},board,{app:'aurora-board',version:1,updatedAt:new Date().toISOString(),labels:labels,images:imgs});
+  return Object.assign({},src,{app:'aurora-board',version:1,updatedAt:new Date().toISOString(),labels:(src.labels||labels),images:imgs});
 }
-/** 把一份外部数据应用到当前面板 */
-async function applyFileData(d){
-  if(Array.isArray(d.labels)&&d.labels.length){
-    labels=d.labels.filter(x=>x&&x.id).map(x=>({
-      id:String(x.id),
-      name:String(x.name||x.id),
-      color:/^#[0-9a-fA-F]{6}$/.test(x.color)?x.color:'#7d879c'
-    }));
-    saveLabels();
-  }
+/** 把一份外部数据应用到指定看板（不传则应用��当前 board） */
+async function applyFileData(d,target){
+  const t=target||board;
+  const lab=Array.isArray(d.labels)&&d.labels.length
+    ? d.labels.filter(x=>x&&x.id).map(x=>({
+        id:String(x.id),
+        name:String(x.name||x.id),
+        color:/^#[0-9a-fA-F]{6}$/.test(x.color)?x.color:'#7d879c'
+      }))
+    : null;
   if(d.images&&typeof d.images==='object'){
     for(const k of Object.keys(d.images)){
       const data=d.images[k];
@@ -2709,143 +2864,219 @@ async function applyFileData(d){
   }
   const nd=Object.assign({},d);
   delete nd.labels; delete nd.images; delete nd.rev; delete nd.updatedAt; delete nd.app; delete nd.version;
-  board=nd;
-  if(!board.title) board.title='Aurora Board';
-  pruneDanglingLabels();
-  board.lists.forEach(l=>l.cards.forEach(c=>{ if(!STATUSES[c.status]) c.status='todo'; }));
-  suppressFileWrite=true;      // 刚读进来的内容不要立刻回写，避免 rev 空转
-  save();
-  suppressFileWrite=false;
+  t.title=nd.title||'Aurora Board';
+  t.lists=nd.lists||[];
+  if(lab) t.labels=lab;
+  pruneDanglingLabels(t);
+  normalizeStatus(t);
+  return t;
 }
 function renderAll(){
   renderBoard(); renderStats(); renderStatusChips(); renderFilterChips(); applyFilter();
 }
-async function writeFile(){
-  if(!fileHandle||!fileSyncOn) return;
+/* 写入：只写指定项目，聚合视图不写 */
+async function writeFile(p){
+  if(!p||!p.fileHandle||!fileSyncOn) return;
   try{
-    const payload=await buildPayload();
-    payload.rev=(Number(localRev)||0)+1;
-    const w=await fileHandle.createWritable();
+    await backupProject(p);
+    const payload=await buildPayload(p.data);
+    payload.rev=(Number(p.rev)||0)+1;
+    const w=await p.fileHandle.createWritable();
     await w.write(JSON.stringify(payload,null,2));
     await w.close();
-    localRev=payload.rev; persistRev();
+    p.rev=payload.rev; p.data.rev=p.rev;
     renderFileStatus();
   }catch(e){
-    fileSyncOn=false; renderFileStatus();
     toast('写入文件失败：'+((e&&e.message)||'未知错误'));
   }
 }
-function scheduleFileWrite(){
-  if(!fileSyncOn) return;
+function scheduleFileWrite(p){
+  if(!fileSyncOn||!p) return;
   clearTimeout(fileWriteTimer);
-  fileWriteTimer=setTimeout(writeFile,800);
+  fileWriteTimer=setTimeout(()=>writeFile(p),800);
 }
-async function readFile(){
-  if(!fileHandle||!fileSyncOn) return false;
+/* 工单目录不做版本管理 → 每次写入前把上一版存进 IndexedDB，误删可回滚 */
+async function backupProject(p){
+  try{ await metaSet('backup_'+p.key,JSON.stringify(p.data)); }catch(e){}
+}
+async function restoreBackup(p){
+  if(!p) return;
   try{
-    const f=await fileHandle.getFile();
-    if(!f.size) return false;
-    const d=JSON.parse(await f.text());
-    if(!d||!Array.isArray(d.lists)||!d.lists.length) return false;
-    const rev=Number(d.rev)||0;
-    if(rev<=localRev) return false;          // 本地更新，不覆盖
-    await applyFileData(d);
-    localRev=rev; persistRev();
-    renderAll();
-    toast('已同步外部更新');
-    return true;
-  }catch(e){ return false; }
+    const raw=await metaGet('backup_'+p.key);
+    if(!raw){ toast('没有可恢复的备份'); return; }
+    const d=JSON.parse(raw);
+    await applyFileData(d,p.data);
+    p.rev=Number(d.rev)||0;
+    save(); refreshCurrentView();
+    toast('已恢复到上一版');
+  }catch(e){ toast('恢复失败：'+((e&&e.message)||'未知错误')); }
+}
+/* 读取：逐个项目比对 rev，只有外部更新的才覆盖 */
+async function readProjects(){
+  if(!fileSyncOn) return false;
+  let changed=false;
+  for(const p of projects){
+    try{
+      const f=await p.fileHandle.getFile();
+      if(!f.size) continue;
+      const d=JSON.parse(await f.text());
+      if(!d||!Array.isArray(d.lists)) continue;
+      const rev=Number(d.rev)||0;
+      if(rev<=p.rev) continue;          // 本地更新，不覆盖
+      await applyFileData(d,p.data);
+      p.rev=rev;
+      changed=true;
+    }catch(e){}
+  }
+  if(changed){ refreshCurrentView(); toast('已同步外部更新'); }
+  return changed;
 }
 function renderFileStatus(){
   const tip=$('#syncTip');
   if(!tip) return;
-  if(fileSyncOn&&fileHandle){
-    tip.textContent='⇄ '+fileHandle.name;
-    tip.title='正在与本地文件双向同步：'+fileHandle.name+'\n'+SYNC_HINT;
-  }else if(pendingHandle){
+  if(fileSyncOn&&projects.length){
+    tip.textContent='⇄ '+(dirHandle?dirHandle.name:projects.length+' 个项目');
+    tip.title='正在与本地工单文件双向同步：'+projects.map(p=>p.name).join('、')+'\n'+SYNC_HINT;
+  }else if(pendingDir||pendingHandle){
     tip.textContent='⇄ 待授权';
-    tip.title='点「同步文件」重新授权';
+    tip.title='点「文件同步」重新授权';
   }else{
     tip.textContent='';
     tip.title='';
   }
   const b=$('#syncBtn');
-  if(b) b.classList.toggle('on',!!(fileSyncOn&&fileHandle));
+  if(b) b.classList.toggle('on',!!(fileSyncOn&&projects.length));
 }
-async function connectHandle(h){
-  fileHandle=h; fileSyncOn=true; pendingHandle=null;
-  try{ await metaSet(FILE_HANDLE_KEY,h); }catch(e){}
-  let rev=0;
-  try{
-    const f=await h.getFile();
-    if(f.size){
-      const d=JSON.parse(await f.text());
-      rev=Number(d.rev)||0;
-      if(d&&Array.isArray(d.lists)&&d.lists.length&&rev>localRev){
-        await applyFileData(d);
-        localRev=rev; persistRev();
-        renderAll();
-        toast('已从文件载入（rev '+rev+'）');
+/* 扫描：目录模式取子目录的 board.json；文件模式取选中的文件 */
+async function scanProjects(){
+  const ps=[];
+  if(dirHandle){
+    try{
+      for await (const [name,handle] of dirHandle.entries()){
+        if(handle.kind!=='directory') continue;
+        try{
+          const fh=await handle.getFileHandle('board.json');
+          const f=await fh.getFile();
+          if(!f.size) continue;
+          const d=JSON.parse(await f.text());
+          if(!d||!Array.isArray(d.lists)) continue;
+          ps.push(makeProject(name,fh,d,handle));
+        }catch(e){}
       }
+    }catch(e){}
+  }else if(fileHandles.length){
+    for(const fh of fileHandles){
+      try{
+        const f=await fh.getFile();
+        if(!f.size) continue;
+        const d=JSON.parse(await f.text());
+        if(!d||!Array.isArray(d.lists)) continue;
+        ps.push(makeProject(fh.name.replace(/\.json$/i,''),fh,d,null));
+      }catch(e){}
     }
-  }catch(e){}
-  await writeFile();
+  }
+  projects=ps;
+  if(curKey!=='__all__'&&!projects.some(p=>p.key===curKey)) curKey='__all__';
+  refreshCurrentView();
+  renderProjSwitch();
   renderFileStatus();
 }
-async function pickExistingFile(){
+async function connectDirectory(dir){
+  dirHandle=dir; fileHandles=[]; pendingDir=null; pendingHandle=null;
+  try{ await metaSet(DIR_HANDLE_KEY,dir); await metaSet(FILE_HANDLE_KEY,null); }catch(e){}
+  fileSyncOn=true;
+  await scanProjects();
+  toast('已连接工单目录：'+dir.name+'（'+projects.length+' 个项目）');
+}
+async function connectFiles(list){
+  fileHandles=list.slice(); dirHandle=null; pendingHandle=null; pendingDir=null;
+  try{ await metaSet(FILE_HANDLE_KEY,list.length===1?list[0]:list); await metaSet(DIR_HANDLE_KEY,null); }catch(e){}
+  fileSyncOn=true;
+  await scanProjects();
+  toast('已连接 '+projects.length+' 个工单文件');
+}
+async function pickDirectory(){
+  if(!window.showDirectoryPicker){ toast('当前浏览器不支持目录选择，请用「选择工单文件（可多选）」'); return; }
+  try{
+    const d=await window.showDirectoryPicker({mode:'readwrite'});
+    await connectDirectory(d);
+  }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
+}
+async function pickFiles(){
   if(!window.showOpenFilePicker){ toast('当前浏览器不支持文件直连，请用右上角「导出 / 导入」'); return; }
   try{
-    const [h]=await window.showOpenFilePicker({types:[{description:'看板数据',accept:{'application/json':['.json']}}],multiple:false});
-    await connectHandle(h);
-    toast('已连接文件：'+h.name);
+    const hs=await window.showOpenFilePicker({types:[{description:'工单数据',accept:{'application/json':['.json']}}],multiple:true});
+    if(hs&&hs.length) await connectFiles(hs);
   }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
 }
 async function createSyncFile(){
   if(!window.showSaveFilePicker){ toast('当前浏览器不支持文件直连，请用右上角「导出 / 导入」'); return; }
   try{
-    const h=await window.showSaveFilePicker({suggestedName:'board.json',types:[{description:'看板数据',accept:{'application/json':['.json']}}]});
-    await connectHandle(h);
-    toast('已连接文件：'+h.name);
+    const h=await window.showSaveFilePicker({suggestedName:'board.json',types:[{description:'工单数据',accept:{'application/json':['.json']}}]});
+    await connectFiles([h]);
   }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
 }
 async function restoreFileHandle(){
   try{
-    const h=await metaGet(FILE_HANDLE_KEY);
-    if(!h||!h.queryPermission) return;
-    const p=await h.queryPermission({mode:'readwrite'});
-    if(p==='granted'){
-      fileHandle=h; fileSyncOn=true;
-      await writeFile();
-    }else{
-      pendingHandle=h;   // 需要用户手势重新授权
+    const d=await metaGet(DIR_HANDLE_KEY);
+    if(d&&d.queryPermission){
+      const p=await d.queryPermission({mode:'readwrite'});
+      if(p==='granted'){
+        dirHandle=d; fileHandles=[]; fileSyncOn=true;
+        await scanProjects(); return;
+      }
+      pendingDir=d;
     }
-    renderFileStatus();
+    const h=await metaGet(FILE_HANDLE_KEY);
+    const hs=Array.isArray(h)?h:(h?[h]:[]);
+    if(hs.length&&hs[0].queryPermission){
+      const ps=await Promise.all(hs.map(x=>x.queryPermission({mode:'readwrite'})));
+      if(ps.every(x=>x==='granted')){
+        fileHandles=hs; dirHandle=null; fileSyncOn=true;
+        await scanProjects(); return;
+      }
+      pendingHandle=hs;
+    }
   }catch(e){}
+  renderFileStatus();
 }
 $('#syncBtn').addEventListener('click',e=>{
   const b=e.currentTarget;
   const list=[
-    {label:'选择已有文件…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickExistingFile()},
-    {label:'新建同步文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()}
+    {label:'选择工单根目录…',icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>pickDirectory()},
+    {label:'选择工单文件（可多选）…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickFiles()},
+    {label:'新建工单文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()},
+    {label:'刷新项目列表',icon:()=>svg(['M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6','M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6','M21 3v6h-6','M3 21v-6h6']),onClick:()=>{ scanProjects(); toast('已刷新项目列表'); }}
   ];
-  if(pendingHandle){
+  const cp=curProject();
+  if(cp) list.push('-',{label:'恢复「'+cp.name+'」上一版',icon:()=>svg(['M3 12a9 9 0 1 0 3-6.7L3 8','M3 3v5h5']),onClick:()=>restoreBackup(cp)});
+  if(pendingDir||pendingHandle){
     list.push({label:'重新授权连接',icon:()=>svg(['M12 3l2.2 1.6 2.6-.3 1 2.4 2.2 1.4-.7 2.5 1 2.4-1.9 1.8.2 2.6-2.5.6-1.6 2.1-2.3-1.1-2.3 1.1-1.6-2.1-2.5-.6.2-2.6-1.9-1.8 1-2.4-.7-2.5L5 7.1l1-2.4 2.6.3z','M9 12l2 2 4-4']),onClick:async()=>{
       try{
-        const p=await pendingHandle.requestPermission({mode:'readwrite'});
-        if(p==='granted'){ await connectHandle(pendingHandle); toast('已重新连接'); }
-        else toast('未获得授权');
+        if(pendingDir){
+          const p=await pendingDir.requestPermission({mode:'readwrite'});
+          if(p==='granted'){ await connectDirectory(pendingDir); toast('已重新连接'); }
+          else toast('未获得授权');
+        }else if(pendingHandle&&pendingHandle[0]){
+          const p=await pendingHandle[0].requestPermission({mode:'readwrite'});
+          if(p==='granted'){ await connectFiles(pendingHandle); toast('已重新连接'); }
+          else toast('未获得授权');
+        }
       }catch(err){ toast('授权失败'); }
     }});
   }
   if(fileSyncOn) list.push('-',{label:'断开连接',danger:true,icon:()=>svg(['M18 6L6 18','M6 6l12 12']),onClick:()=>{
-    fileSyncOn=false; fileHandle=null; pendingHandle=null;
-    try{ metaSet(FILE_HANDLE_KEY,null); }catch(e){}
-    renderFileStatus(); toast('已断开文件同步');
+    fileSyncOn=false; dirHandle=null; fileHandles=[]; pendingHandle=null; pendingDir=null;
+    try{ metaSet(FILE_HANDLE_KEY,null); metaSet(DIR_HANDLE_KEY,null); }catch(e){}
+    projects=[]; curKey='__all__';
+    board=standalone; labels=loadStandaloneLabels();
+    renderAll(); renderProjSwitch(); renderFileStatus();
+    toast('已断开文件同步');
   }});
   openMenu(b,{list:list});
 });
-window.addEventListener('focus',()=>{ if(fileSyncOn) readFile(); });
-setInterval(()=>{ if(fileSyncOn) readFile(); },4000);
+window.addEventListener('focus',()=>{ if(fileSyncOn) readProjects(); });
+setInterval(()=>{ if(fileSyncOn) readProjects(); },4000);
 
 /* ============================================================
    顶栏动作
@@ -2870,14 +3101,16 @@ $('#themeBtn').addEventListener('click',()=>{
 })();
 
 $('#exportBtn').addEventListener('click',async()=>{
+  if(projects.length&&curKey==='__all__'){ toast('「全部项目」是只读汇总视图，请先切换到具体项目再导出'); return; }
   // 一并导出标签表与图片，导入方即可完整还原（名称、颜色、截图）
+  const src=projects.length?curProject().data:board;
   const imgs={};
-  for(const id of collectImageIds()){
+  for(const id of collectImageIds(src)){
     let d=imgCache.get(id);
     if(!d){ try{ const rec=await idbGet(id); d=rec&&rec.data; }catch(e){} }
     if(d) imgs[id]=d;
   }
-  const payload=Object.assign({},board,{app:'aurora-board',version:1,updatedAt:new Date().toISOString(),labels:labels,images:imgs});
+  const payload=Object.assign({},src,{app:'aurora-board',version:1,rev:(projects.length?(curProject().rev||0):localRev),updatedAt:new Date().toISOString(),labels:labels,images:imgs});
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -2894,6 +3127,16 @@ $('#importFile').addEventListener('change',e=>{
     try{
       const d=JSON.parse(r.result);
       if(!d||!Array.isArray(d.lists)||!d.lists.length) throw new Error('格式错误');
+      if(projects.length){
+        // 工单模式：导入替换当前项目的数据
+        const p=curProject();
+        if(!p){ toast('「全部项目」是只读汇总视图，请先切换到具体项目再导入'); return; }
+        await applyFileData(d,p.data);
+        p.rev=Number(d.rev)||0;
+        save(); refreshCurrentView();
+        toast('已导入到「'+p.name+'」');
+        return;
+      }
       if(Array.isArray(d.labels)&&d.labels.length){
         labels=d.labels.filter(x=>x&&x.id).map(x=>({
           id:String(x.id),

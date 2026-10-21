@@ -127,8 +127,20 @@ Check "图片引用格式 ![..](img:ID)" ($html -match 'img:' -and $html -match 
 # 文件桥
 Check "文件同步入口 (#syncBtn)" ($html -match 'id="syncBtn"') "缺少文件同步按钮"
 Check "File System Access API 接入" ($html -match 'showSaveFilePicker' -and $html -match 'showOpenFilePicker') "缺少文件选择能力"
-Check "按 rev 判定谁覆盖谁" ($html -match 'rev\s*<=\s*localRev') "缺少 rev 冲突判定"
+Check "按 rev 判定谁覆盖谁（逐项目）" ($html -match 'rev<=p\.rev') "缺少 rev 冲突判定"
 Check "文件内容含 labels/images/status" ($html -match 'labels:labels' -and $html -match 'images:imgs') "导出 payload 不完整"
+
+Write-Host "`n=== 6c. 多项目工单流 ===" -ForegroundColor Cyan
+Check "多项目数据模型 projects[]" ($html -match 'let projects=\[\]' -and $html -match 'let curKey=') "缺少多项目模型"
+Check "聚合视图按状态分列" ($html -match 'function buildAggregate' -and $html -match "STATUS_KEYS\.map") "聚合视图未按状态分列"
+Check "项目切换器 (#projSwitch)" ($html -match 'id="projSwitch"' -and $html -match 'function renderProjSwitch') "缺少项目切换器"
+Check "工单根目录扫描" ($html -match 'showDirectoryPicker' -and $html -match 'function scanProjects') "缺少目录扫描"
+Check "写入按项目路由" ($html -match 'async function writeFile\(p\)' -and $html -match 'scheduleFileWrite\(p\)') "写入未按项目路由"
+Check "逐项目读取比对 rev" ($html -match 'async function readProjects' -and $html -match 'rev<=p\.rev') "读取未按项目比对 rev"
+Check "上一版回滚备份" ($html -match 'function backupProject' -and $html -match 'function restoreBackup') "缺少备份/回滚"
+Check "聚合视图只读保护" ($html -match '只读汇总视图') "聚合视图未做只读保护"
+Check "聚合视图点卡片自动切项目" ($html -match "card\.dataset\.proj" -and $html -match 'switchTo\(pj\)') "汇总视图点卡片未跳转到所属项目"
+Check "汇总视图不渲染状态 chip" ($html -match "st!=='todo'&&!card\.__proj") "汇总视图重复显示状态 chip"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
