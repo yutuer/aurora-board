@@ -141,7 +141,12 @@ Check "上一版回滚备份" ($html -match 'function backupProject' -and $html 
 Check "聚合视图只读保护" ($html -match '只读汇总视图') "聚合视图未做只读保护"
 Check "聚合视图点卡片自动切项目" ($html -match "card\.dataset\.proj" -and $html -match 'switchTo\(pj\)') "汇总视图点卡片未跳转到所属项目"
 Check "汇总视图不渲染状态 chip" ($html -match "st!=='todo'&&!card\.__proj") "汇总视图重复显示状态 chip"
-Check "一键新建工单项目（写初始 board.json + 父目录作根）" ($html -match 'function createProjectDir' -and $html -match "getFileHandle\('board\.json',\{create:true\}\)" -and $html -match 'd\.parent') "缺少新建工单项目入口"
+Check "一键新建工单项目（根目录建子目录 + 写初始 board.json + 项目目录写指针）" ($html -match 'function createProjectDir' -and $html -match "getDirectoryHandle\(projName,\{create:true\}\)" -and $html -match "getFileHandle\('board\.json',\{create:true\}\)" -and $html -match 'function writeBoardPath') "缺少新建工单项目入口"
+# 取件脚本：必须自带 UTF-8 BOM，否则 PowerShell 5.1 会按 ANSI 解码 → 中文乱码 → 解析失败
+Check "take.ps1 自带 UTF-8 BOM（PS 5.1 硬要求）" ($html -match "TAKE_PS1=\[\s*'\\uFEFF") "take.ps1 首行缺 U+FEFF，PS 5.1 下会乱码解析失败"
+Check "取件脚本会标记 doing 防重复领取" ($html -match '\$c\.status\s*=\s*"doing"') "取件未标记 doing，会重复领取同一张卡"
+Check "项目目录写 .board-path 指针" ($html -match "getFileHandle\('\.board-path'") "缺少 .board-path 指针"
+Check "目录名失配时列出可用项目" ($html -match '工单根目录下的项目') "失配时无提示，agent 会瞎猜"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，

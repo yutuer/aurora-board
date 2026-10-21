@@ -2744,6 +2744,20 @@ let dirHandle=null;              // 目录模式
 let fileHandles=[];              // 文件模式（可多选）
 let fileSyncOn=false, pendingHandle=null, pendingDir=null;
 let fileWriteTimer=null, localRev=0, suppressFileWrite=false;
+const ROOT_PATH_KEY='aurora.boardsroot.v1';
+
+/** 工单根目录的绝对路径（浏览器拿不到目录句柄的绝对路径，只能由用户确认一次） */
+function boardsRoot(){
+  try{ const v=localStorage.getItem(ROOT_PATH_KEY); if(v) return v; }catch(e){}
+  return BOARDS_ROOT;
+}
+function askBoardsRoot(){
+  const def=BOARDS_ROOT;
+  const v=window.prompt('工单根目录的完整路径\n（用于在项目目录里写 .board-path 指针，agent 靠它找到工单）\n建议保持默认：'+def,def);
+  const r=(v||def).trim();
+  try{ localStorage.setItem(ROOT_PATH_KEY,r); }catch(e){}
+  return r;
+}
 
 try{ localRev=Number(localStorage.getItem(FILE_REV_KEY))||0; }catch(e){}
 function persistRev(){ try{ localStorage.setItem(FILE_REV_KEY,String(localRev)); }catch(e){} }
@@ -2985,6 +2999,8 @@ async function connectDirectory(dir){
   dirHandle=dir; fileHandles=[]; pendingDir=null; pendingHandle=null;
   try{ await metaSet(DIR_HANDLE_KEY,dir); await metaSet(FILE_HANDLE_KEY,null); }catch(e){}
   fileSyncOn=true;
+  try{ if(!localStorage.getItem(ROOT_PATH_KEY)) askBoardsRoot(); }catch(e){}
+  await writeTakeScript();
   await scanProjects();
   toast('已连接工单目录：'+dir.name+'（'+projects.length+' 个项目）');
 }
@@ -3016,29 +3032,116 @@ async function createSyncFile(){
     await connectFiles([h]);
   }catch(e){ if(e&&e.name!=='AbortError') toast('连接失败：'+((e&&e.message)||'未知错误')); }
 }
-/** 新建一个工单项目：选一个子目录 → 自动写入初始 board.json → 父目录自动认做工单根目录 */
+/** agent 取件脚本：放在工单根目录，用 $PSScriptRoot 自定位；项目名默认取当前目录名 */
+const TAKE_PS1=[
+'\uFEFF# Aurora Board 取件脚本',
+'# ⚠️ 本文件必须保持 UTF-8 **带 BOM** 编码：PowerShell 5.1 会把无 BOM 的 .ps1',
+'#    按系统 ANSI 解码，中文乱码会导致脚本直接解析失败。',
+'# 用法（在项目目录里）：',
+'#   powershell -ExecutionPolicy Bypass -File "<工单根目录>\\take.ps1"          取一条待处理并标记为 doing',
+'#   powershell -ExecutionPolicy Bypass -File "<工单根目录>\\take.ps1" -List    只列出，不领取',
+'#   powershell -ExecutionPolicy Bypass -File "<工单根目录>\\take.ps1" -Project xxx  指定项目',
+'# 项目名默认取当前工作目录名。',
+'param(',
+'  [string]$Project = "",',
+'  [switch]$List',
+')',
+'$ErrorActionPreference = "Stop"',
+'if(-not $Project){ $Project = Split-Path -Leaf $PWD }',
+'$root = $PSScriptRoot',
+'$path = Join-Path (Join-Path $root $Project) "board.json"',
+'if(-not (Test-Path -LiteralPath $path)){',
+'  # 当前目录名与工单子目录名不一致 → 列出所有项目及其待处理数，别让 agent 猜',
+'  $found = @()',
+'  Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object {',
+'    $bf = Join-Path $_.FullName "board.json"',
+'    if(Test-Path -LiteralPath $bf){',
+'      try{',
+'        $jj = [System.IO.File]::ReadAllText($bf, [System.Text.Encoding]::UTF8) | ConvertFrom-Json',
+'        $n = @($jj.lists | ForEach-Object { $_.cards } | Where-Object { $_.status -eq "todo" }).Count',
+'        $found += ("  " + $_.Name + "   (待处理 " + $n + ")")',
+'      }catch{}',
+'    }',
+'  }',
+'  if($found.Count -gt 0){',
+'    Write-Output ("当前目录名 """ + $Project + """ 下没有工单文件。工单根目录下的项目：")',
+'    $found | ForEach-Object { Write-Output $_ }',
+'    Write-Output "用 -Project <名字> 指定"',
+'  } else {',
+'    Write-Error ("找不到工单文件: " + $path)',
+'  }',
+'  exit 1',
+'}',
+'$raw = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)',
+'$j = $raw | ConvertFrom-Json',
+'$todo = @($j.lists | ForEach-Object { $_.cards } | Where-Object { $_.status -eq "todo" })',
+'if($List -or $todo.Count -eq 0){',
+'  if($todo.Count -eq 0){ Write-Output "（没有待处理的工单）" }',
+'  else { $todo | ForEach-Object { Write-Output ("【" + $_.title + "】" + $_.desc) } }',
+'  exit 0',
+'}',
+'# 领取第一条：标记为 doing，避免下次重复领',
+'$c = $todo[0]',
+'$c.status = "doing"',
+'$j.rev = [int]$j.rev + 1',
+'$j.updatedAt = (Get-Date).ToUniversalTime().ToString("o")',
+'$out = $j | ConvertTo-Json -Depth 20',
+'[System.IO.File]::WriteAllText($path, $out, (New-Object System.Text.UTF8Encoding($false)))',
+'Write-Output ("已领取：" + $c.title + "（status -> doing）")',
+'Write-Output ("【" + $c.title + "】" + $c.desc)',
+''
+].join('\n');
+
+/** 在工单根目录写好 take.ps1（agent 的取件入口）
+ *  ⚠️ 必须写 UTF-8 **带 BOM**：PowerShell 5.1 会把无 BOM 的 .ps1 按系统 ANSI 解码，
+ *     脚本里的中文会变乱码并直接导致解析失败（无 BOM 的 .ps1 在 5.1 下不可用）。
+ *     File System Access API 写字符串默认不带 BOM，所以 TAKE_PS1 首行自带 U+FEFF。 */
+async function writeTakeScript(){
+  if(!dirHandle) return;
+  try{
+    const fh=await dirHandle.getFileHandle('take.ps1',{create:true});
+    const w=await fh.createWritable();
+    await w.write(TAKE_PS1);
+    await w.close();
+  }catch(e){}
+}
+/** 在项目代码目录写 .board-path 指针（agent 一进项目就能看到工单在哪） */
+async function writeBoardPath(codeDir,projName,rootAbs){
+  try{
+    const fh=await codeDir.getFileHandle('.board-path',{create:true});
+    const w=await fh.createWritable();
+    w.write([
+      '# Aurora Board 工单指针（供 Agent 读取）',
+      '# 本项目的工单文件：',
+      '#   '+rootAbs+'\\'+projName+'\\board.json',
+      '# 取件（自动按当前目录名定位项目，并把领到的卡片标记为 doing）：',
+      '#   powershell -ExecutionPolicy Bypass -File "'+rootAbs+'\\take.ps1"',
+      'project: '+projName
+    ].join('\n'));
+    await w.close();
+  }catch(e){}
+}
+/** 新建一个工单项目：选**项目代码目录** → 自动建工单子目录 + 初始 board.json + 项目目录写 .board-path */
 async function createProjectDir(){
   if(!window.showDirectoryPicker){ toast('当前浏览器不支持目录选择，请用「新建工单文件…」'); return; }
   try{
-    const d=await window.showDirectoryPicker({mode:'readwrite'});
+    if(!dirHandle){ toast('请先「选择工单根目录」，再新建项目'); return; }
+    const codeDir=await window.showDirectoryPicker({mode:'readwrite'});
+    const projName=codeDir.name;
+    const pd=await dirHandle.getDirectoryHandle(projName,{create:true});
+    const fh=await pd.getFileHandle('board.json',{create:true});
     const seed={
-      title:d.name,
+      title:projName,
       lists:[{id:uid('l'),title:'待处理',color:'#7d879c',cards:[]}],
       labels:loadStandaloneLabels(),
       images:{}
     };
-    const fh=await d.getFileHandle('board.json',{create:true});
     const w=await fh.createWritable();
     await w.write(JSON.stringify(Object.assign({},seed,{app:'aurora-board',version:1,rev:1,updatedAt:new Date().toISOString()}),null,2));
     await w.close();
-    const parent=d.parent;
-    if(parent){
-      try{ await parent.requestPermission({mode:'readwrite'}); }catch(e){}
-      await connectDirectory(parent);
-    }else{
-      await connectFiles([fh]);
-    }
-    toast('已创建工单项目「'+d.name+'」');
+    await writeBoardPath(codeDir,projName,boardsRoot());
+    await scanProjects();
+    toast('已创建工单项目「'+projName+'」');
   }catch(e){ if(e&&e.name!=='AbortError') toast('创建失败：'+((e&&e.message)||'未知错误')); }
 }
 async function restoreFileHandle(){
@@ -3069,9 +3172,10 @@ $('#syncBtn').addEventListener('click',e=>{
   const b=e.currentTarget;
   const list=[
     {label:'选择工单根目录…',icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>pickDirectory()},
-    {label:'新建工单项目…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createProjectDir()},
+    {label:'新建工单项目…（选项目代码目录）',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createProjectDir()},
     {label:'选择工单文件（可多选）…',icon:()=>svg(['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6']),onClick:()=>pickFiles()},
     {label:'新建工单文件…',icon:()=>svg(['M12 5v14','M5 12h14']),onClick:()=>createSyncFile()},
+    {label:'工单根目录路径：'+boardsRoot(),icon:()=>svg(['M3 7h6l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z']),onClick:()=>{ askBoardsRoot(); toast('已更新工单根目录路径'); }},
     {label:'刷新项目列表',icon:()=>svg(['M21 12a9 9 0 0 1-9 9 9 9 0 0 1-8.5-6','M3 12a9 9 0 0 1 9-9 9 9 0 0 1 8.5 6','M21 3v6h-6','M3 21v-6h6']),onClick:()=>{ scanProjects(); toast('已刷新项目列表'); }}
   ];
   const cp=curProject();
