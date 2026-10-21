@@ -12,7 +12,7 @@
 | 线上地址 | https://yutuer.github.io/aurora-board/ |
 | 仓库 | https://github.com/yutuer/aurora-board |
 | 本地路径 | `C:\Users\yutue\WorkBuddy\trello看板` |
-| 应用本体 | `index.html`（单文件，约 125 KB） |
+| 应用本体 | `index.html`（单文件，约 145 KB） |
 | 数据存储 | 浏览器 localStorage，键 `aurora.board.v1`（看板）+ `aurora.labels.v1`（标签表）+ `aurora.rev.v1`（文件修订号）；**图片存 IndexedDB**（`aurora-media` 库，磁盘级配额）。**不上传服务器** |
 | 当前状态 | ✅ 已上线（每次部署由 CI 自动注入构建戳，见页面右上角；校验方式见第四章） |
 
@@ -42,6 +42,8 @@
 | P16 多项目工单流 | 工单根目录扫描 + 顶栏项目切换器 + 「全部项目」聚合视图（按状态分列）+ 写入按项目路由 + 上一版回滚 | `5fd6399` |
 | P17 一键接入 | 「新建工单项目…」在工单根目录建子目录 + 写初始 board.json + 在项目代码目录写 `.board-path` 指针 | `063df77` |
 | P18 agent 取件工具链 | 工单根目录自动生成 `take.ps1`（取件 + 标记 doing + rev 自增 + 失配时列出项目） | `2ed093f` |
+| P19 项目取名修正 | 文件模式用工单 title 取名 + 重名去重 + 可重命名项目 | `42a2ace` |
+| P20 取件闭环 | `take.ps1` 支持 `-Done <卡片ID>` 标记状态（review / done），输出带卡片 ID | `42e2619` |
 
 **验证结论**（2026-10-19 17:45）：
 - `has_pages: true`，`https://yutuer.github.io/aurora-board/` 返回 **200**
@@ -364,6 +366,8 @@ powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1"
 
 ### Agent 侧操作约定
 
+> 下面的手写 JSON 方式**能用但容易忘 `rev+1`**（忘了面板就拉不到）。**推荐用 `take.ps1`**，它会自动自增 rev。见下面的话术模板。
+
 ```powershell
 # 1) 取待处理的 bug（含描述与截图）
 $j = Get-Content board.json -Raw | ConvertFrom-Json
@@ -380,6 +384,47 @@ $j | ConvertTo-Json -Depth 10 | Set-Content board.json -Encoding UTF8
 ```
 
 面板在 4 秒内自动拉到（`rev` 更大即应用），并提示「已同步外部更新」。
+
+### 跟 agent 怎么说（话术模板）
+
+> 路径按你的工单根目录替换（`C:\Users\yutue\boards`）。
+
+**① 先看看有哪些活（不领取）**
+```
+跑一下：powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1" -List
+把本项目的待处理工单列给我看，先别动手。
+```
+
+**② 领一条并修好（最常用）**
+```
+去取本项目的待处理工单：powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1"
+按工单描述里的问题修好；改完把工单标成待复查：
+powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1" -Done <工单里给出的卡片ID>
+```
+
+**③ 清空所有待处理（连续处理）**
+```
+把本项目所有待处理工单处理完：先跑 take.ps1 领一条，修完用 take.ps1 -Done <卡片ID> 标记，
+重复直到提示"没有待处理的工单"。每条都要真正修完再标记。
+```
+
+**④ 复查通过后标记已确认**
+```
+powershell -ExecutionPolicy Bypass -File "C:\Users\yutue\boards\take.ps1" -Done <卡片ID> -Status done
+```
+> 这一步**在面板里点两下更快**（卡片弹窗 → 状态 → 已确认），不必麻烦 agent。
+
+**取件脚本的完整能力**：
+
+| 命令 | 行为 |
+|---|---|
+| `take.ps1` | 取一条 `todo` → 标 `doing`，打印 `[卡片ID] 标题 + 描述` |
+| `take.ps1 -List` | 只列出待处理，不领取 |
+| `take.ps1 -Project xxx` | 目录名与当前目录不一致时指定项目 |
+| `take.ps1 -Done <卡片ID>` | 标记为 `review`（待复查） |
+| `take.ps1 -Done <卡片ID> -Status done` | 标记为 `done`（已确认） |
+
+**每次写回都自增 `rev`**，面板据此判断要不要覆盖界面 —— 所以**必须用脚本写回**，手改 JSON 忘了 `rev+1` 面板就拉不到。
 
 ### 描述里的图片从哪来
 
