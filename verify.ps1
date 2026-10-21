@@ -152,6 +152,9 @@ Check "目录名失配时列出可用项目" ($html -match '工单根目录下�
 Check "项目名重名去重" ($html -match 'function pickProjectName' -and $html -match 'used\[name\+' ) "缺少重名去重，多个 board.json 会同名"
 Check "项目名优先取工单 title" ($html -match "data\.title&&data\.title!=='Aurora Board'") "项目名未取 title，文件模式会显示成 board"
 Check "可重命名项目（写回 title 持久化）" ($html -match 'function renameProject' -and $html -match 'p\.data\.title=nm') "缺少重命名入口"
+# 闭环：agent 改完代码后必须能标记状态，否则只能手改 JSON（容易忘 rev+1，面板拉不到）
+Check "取件脚本支持 -Done 标记状态" ($html -match '\[string\]\$Done' -and $html -match 'target\.status\s*=\s*\$Status') "缺少 -Done，无法闭环标记"
+Check "取件输出带卡片ID" ($html -match '\$c\.id \+ "\] " \+ \$c\.title') "取件未输出卡片ID，agent 无法精确标记"
 
 Write-Host "`n=== 7. 线上状态（网络可选，失败仅提示） ===" -ForegroundColor Cyan
 # 7a. 线上页面优先：构建戳 + 逐字节比对。这才是部署是否成功的权威信号，
